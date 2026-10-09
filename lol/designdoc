@@ -1,0 +1,615 @@
+# NetRescue — Website Design Document (v2, with Features Pages)
+
+**Product Reference:** NetRescue PRD v5.0
+**Stack:** React + TypeScript + Vite + Tailwind CSS + Framer Motion + React Router
+**Deliverable:** Landing page **+ standalone Features index page + individual Feature detail pages**
+
+> **What's new in v2:** The three feature cards on the landing page now **navigate to real routes** (`/features` and `/features/:id`) instead of opening a modal overlay. The overlay is demoted to an optional quick-preview. Everything else (design system, motion tokens, typography, video behavior) is unchanged.
+
+---
+
+## 1. Design System
+
+### 1.1 Fonts
+
+| Role | Font | Source |
+|---|---|---|
+| Primary (all UI text) | **Space Mono** (400, 700, italic) | Google Fonts |
+| Display watermark (hero background only) | **Anton SC** | Google Fonts |
+| Apple icon (download button) | Bootstrap Icons CDN | `bi bi-apple` |
+
+Override all Tailwind `fontFamily` keys (`sans`, `serif`, `mono`) to `"Space Mono", monospace`.
+
+### 1.2 Colors
+
+| Token | Value | Usage |
+|---|---|---|
+| `--bg` | `#000000` | Global background |
+| `--fg` | `#ffffff` | Primary text |
+| `--fg-muted-40` | `rgba(255,255,255,0.40)` | Subtitles, labels |
+| `--fg-muted-45` | `rgba(255,255,255,0.45)` | Body text |
+| `--fg-muted-50` | `rgba(255,255,255,0.50)` | Paragraphs |
+| `--fg-muted-60` | `rgba(255,255,255,0.60)` | Description text |
+| `--pill-bg` | `rgba(255,255,255,0.15)` | Nav pills |
+| `--pill-bg-hover` | `rgba(255,255,255,0.22)` | Nav pill hover |
+| `--accent-purple` | `#8E7F94` | Hero watermark gradient |
+| `--border-subtle` | `rgba(255,255,255,0.10)` | Cards, dividers |
+
+### 1.3 Global CSS (`index.css`)
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Anton+SC&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Space Mono", monospace;
+  --font-serif: "Space Mono", monospace;
+  --font-mono: "Space Mono", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: #000;
+  color: #fff;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+.lenis.lenis-scrolling iframe { pointer-events: none; }
+```
+
+### 1.4 Motion Tokens
+
+| Token | Value | Usage |
+|---|---|---|
+| `ease-cinematic` | `[0.215, 0.610, 0.355, 1.000]` | All fade-up entrances |
+| `spring-menu` | `{ stiffness: 350, damping: 28 }` | Pill width expansion |
+| `spring-hamburger` | `{ stiffness: 300, damping: 20 }` | Hamburger bar rotation |
+| `spring-scroll` | `{ stiffness: 15, damping: 32, mass: 1.8 }` | 3D text tilt |
+| `spring-page` | `{ stiffness: 260, damping: 26 }` | Page transition |
+| `fade-in` | `{ duration: 1, opacity: 0→1 }` | Section entrances |
+| `fade-up-y25` | `{ y: 25→0, opacity: 0→1, duration: 0.9, ease }` | Paragraphs |
+| `fade-up-y40` | `{ y: 40→0, opacity: 0→1, duration: 1.0 }` | Headings |
+
+### 1.5 Reusable Primitives
+
+1. **`ScrambleIn`** — entrance text reveal (interval 25ms, 0.5 chars/frame, random chars up to 3 ahead of cursor, spaces preserved, pre-trigger renders `&nbsp;`).
+2. **`ScrambleText`** — hover-driven scramble (4 frames/char on hover, instant reset on unhover).
+3. **`SquashHamburger`** — 3-bar animated hamburger (desktop 18×12px, mobile 15×10px; top/bottom rotate ±45°, middle fades).
+4. **`NetRescueLogo`** — 4-fold symmetric node-link SVG (see §2).
+5. **`VideoBackground`** — wrapper for autoplay/loop or scrubbed video with overlay gradients.
+6. **`PageShell`** — layout wrapper for the Features index and detail pages (sticky header, scroll container, footer).
+7. **`FeatureOverlay`** *(optional)* — quick-preview modal retained for the landing page only.
+
+---
+
+## 2. NetRescue Logo (`NetRescueLogo`)
+
+**Concept:** A 4-fold rotationally symmetric node-link glyph suggesting self-healing overlay topology — four nodes connected by curved paths around a center.
+
+**SVG spec:**
+- `viewBox="-50 -50 100 100"`
+- Base path (quadrant 1, repeated at 90/180/270° rotations):
+
+```
+M 2,22 L 2,32 C 2,37 6.5,41.5 11.5,41.5
+L 16.5,41.5 C 21.5,41.5 26,37 26,32
+Q 27.5,27 32,25.5
+C 37,25.5 41.5,21 41.5,16
+L 41.5,11.5 C 41.5,6.5 37,2 32,2
+L 22,2
+Q 12,12 2,22 Z
+```
+
+- `<path fill="currentColor">`, `<g>` wrapping 4 copies with `transform="rotate(0|90|180|270)"`.
+- Sizes: 18×18 in pills; 24×24 in page headers.
+
+---
+
+## 3. Landing Page (`/`)
+
+### SECTION 0 — Navbar (fixed, `z-50`, `h-20`, transparent)
+
+**Desktop (`md+`):**
+- Left: logo pill + expanding menu pill (gap-2)
+  - **Logo pill:** `h-12 px-5 bg-white/15 backdrop-blur-md rounded-[14px]` — logo + "NetRescue" (16px medium). Hover scale 1.02, tap 0.98.
+  - **Expanding menu pill:** width `48px → 290px`, spring `{350, 28}`, `rounded-[14px]`, `bg-white/15 backdrop-blur-md`.
+    - Nav links (ScrambleText on hover): **"Features"** → `navigate('/features')`, **"Metrics"** → smooth-scroll to §3, **"Architecture"** → smooth-scroll to §5.
+- Right: **Download button** — `h-12 px-6 bg-white rounded-full`, black text, Apple icon + "Download" (ScrambleText on hover).
+
+**Mobile (`<sm`):** Scaled-down (`h-9`, `rounded-[10px]`, 13px). Logo pill animates width to 0 when menu opens. Menu capsule expands to 100% width. Download button `h-9 px-3.5 rounded-full`.
+
+---
+
+### SECTION 1 — Hero (full viewport, `h-screen h-[100dvh]`)
+
+**Background video (mouse-scrubbed, NOT autoplay):**
+- Loads paused at t=0. Horizontal mouse movement scrubs timeline forward/backward.
+- Sensitivity `0.8`. Seek chaining via `seeked` event.
+- Source placeholder: `https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260622_083515_290e5a10-0b95-41af-a5e2-32b6389baa4d.mp4`
+
+**Overlays:**
+- Dot grid: `radial-gradient(#ffffff 1px, transparent 1px)`, 24×24px, opacity 0.05, `pointer-events-none`.
+- Watermark: word **"RESILIENCE"** in Anton SC, centered vertically (+50px), `clamp(120px, 30vw, 521px)`, uppercase, letter-spacing -4px, opacity 0.10. Gradient fill `radial-gradient(circle, rgba(142,127,148,0) 0%, #8E7F94 70%)` with `background-clip: text`.
+
+**Layout:** `flex flex-col`, `px-4 sm:px-6 md:px-8 pt-20 sm:pt-24 pb-8 sm:pb-12`. Content pushed to bottom via `flex-1` spacer.
+
+**Entrance:** after 800ms, `entranceComplete = true` → hero content fades in (1s).
+
+**Bottom row:** `flex-col gap-6 md:flex-row md:items-end md:justify-between`
+- **Left column:**
+  - **h1:** "Self-Healing" / "Networks" — `text-[clamp(40px,10vw,100px)] font-light leading-[0.95] tracking-[-0.03em]`. ScrambleIn delays 200ms / 500ms.
+  - **Paragraph:** *"A software-defined overlay that recovers from node failure, schedules multipath transfers with research-proven algorithms, and emulates real network conditions using the Linux kernel."* — `max-w-sm text-[13px] sm:text-[15px] text-white/60`. Fade-up y25, delay 0.2s.
+- **Right h1:** "One" / "System" — same style, `md:text-right`. ScrambleIn delays 700ms / 1000ms.
+
+---
+
+### SECTION 2 — Cinematic Statement (full viewport)
+
+**Background:** Video #2 (abstract node-link topology), autoplay muted loop, `object-cover`.
+- `https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260622_092455_089c54f8-3b03-4966-9df1-e9746063d0ef.mp4`
+
+**Top gradient:** 180px, `linear-gradient(#010103 → transparent)`, `z-10`.
+
+**Content:** Centered paragraph, `max-w-5xl`, 3D perspective 400px.
+- Motion: `rotateX(24deg) translateY(${yScaleValue}px) translateZ(15px)`, `yScaleValue` 60→-120 (spring `{15, 32, 1.8}`). Opacity 0→1 between progress 0.3–0.5.
+- Text: *"A network resilience platform built on peer-reviewed research. NetRescue translates routing instability into measurable recovery. Every heartbeat, every chunk, every failure becomes observable. The system continuously rebuilds forwarding state as topology changes. Biological noise is replaced by kernel-level truth."*
+- Style: `text-[22px] sm:text-[30px] md:text-[36px] lg:text-[42px] leading-[1.35] tracking-[-0.02em] select-none px-6 sm:px-12 text-center`.
+
+---
+
+### SECTION 3 — Metrics (`min-h-screen`)
+
+**Background:** Video #3 (macro of LED indicators), autoplay muted loop.
+- `https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260622_095810_ecea3dd2-fc5e-4e41-8696-4219290b6589.mp4`
+
+**Subtitle:** "Measured Outcomes" — `text-white/40 text-[13px] sm:text-[14px] tracking-[0.2em] uppercase mb-20 text-center`. Fade-in on view (1.2s, once, amount 0.3).
+
+**Grid:** 3 cols md, 1 mobile, gap-16 md:gap-8. Each item stagger-fades (y:30→0, 0.8s, delay i×0.15).
+
+| Value | Label |
+|---|---|
+| `< 3s` | Failure Detection |
+| `≥ 50%` | Route Flap Reduction |
+| `SHA-256` | Transfer Integrity |
+| `≤ 10%` | Emulation Error |
+| `5×` | Repeatability Runs |
+| `0` | Cloud Dependencies |
+
+Value: `text-[clamp(48px,10vw,96px)] font-light tracking-[-0.04em] leading-none`. Label: `text-white/40 text-[13px] sm:text-[15px] mt-4`.
+
+---
+
+### SECTION 4 — Features Grid (full viewport) → **Navigates to Feature Pages**
+
+**Background:** Video #4 (dark data center corridor), autoplay muted loop.
+- `https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260622_095750_32a52ce0-2005-45c9-9093-41f03fde9530.mp4`
+
+**Top area:** `flex-col md:flex-row md:justify-between md:items-start gap-6`
+- **Left heading:** "Three / Features" — `text-[clamp(36px,8vw,72px)] font-light leading-[0.95] tracking-[-0.03em]`. Fade-up y40, 1.0s.
+- **Right paragraph:** *"Each feature is independently demonstrable, backed by peer-reviewed algorithms, and validated under Linux `tc`/`netem` emulation. Click any card to open its full specification."* — `text-white/50 max-w-xs md:text-right md:pt-2`.
+
+**Bottom grid:** 3 cols md, 1 mobile, gap-8 md:gap-6. Fade-in on view (delay 0.3s), stagger (y:20→0, 0.7s, delay i×0.1).
+
+Each card is a **`<Link>`** (react-router) that navigates to `/features/:id`:
+
+| # | Feature | Short desc | Route |
+|---|---|---|---|
+| 1 | **Hysteresis Recovery** | "Three-state detection with a dead band that eliminates route flapping." | `/features/feature-a` |
+| 2 | **Multipath Transfer** | "DB-DSP scheduling and RTX-CL retransmission across heterogeneous paths." | `/features/feature-c` |
+| 3 | **Network Emulation** | "Kernel-level delay, jitter, loss, and rate control via `tc`/`netem`." | `/features/feature-d` |
+
+**Card spec:**
+- `border border-white/10 rounded-lg p-6 h-full text-left`
+- Hover: `bg-white/[0.03]` + `border-white/25` + translate y -2px (spring)
+- Focus-visible: `outline outline-1 outline-white/40`
+- Title: `text-[14px] sm:text-[16px] font-normal mb-2`
+- Desc: `text-white/40 text-[12px] sm:text-[14px] leading-relaxed`
+- Trailing `ArrowUpRight` icon fades in on hover.
+- Rendered as `<Link to={...}>` so it is keyboard-navigable and URL-updating by default.
+
+---
+
+### SECTION 5 — Architecture (`min-h-screen`, pure black, no video)
+
+**Content:** centered, `max-w-3xl px-6 py-32`.
+- Subtitle: "Architecture" — `tracking-[0.2em] uppercase mb-8`.
+- Heading: "Three layers. Zero cloud." — `text-[clamp(28px,6vw,56px)] font-light leading-[1.15] tracking-[-0.02em] mb-10`.
+- Description: *"Control plane decides. Forwarding plane moves. Emulation lives in the Linux kernel. PostgreSQL persists everything the run produces."* — `text-white/45 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto`.
+
+**Layer cards** (fade-in 1.2s delay 0.4s, amount 0.4): 3 stacked, `max-w-md h-[72px] border border-white/10 rounded-lg flex items-center justify-between px-6`.
+
+| Left | Right |
+|---|---|
+| `LAYER 01` | Control Plane |
+| `LAYER 02` | Forwarding Plane |
+| `LAYER 03` | Kernel Emulation |
+
+---
+
+### FOOTER
+
+- Black, `overflow-hidden`, `flex-col md:flex-row min-h-[400px]`.
+- **Left:** Video #5 (circuit board macro), autoplay muted loop, `object-cover`, `h-[300px]` mobile, auto height md.
+  - `https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260622_080203_fd7f4f85-3a86-4837-8192-85e7bfe68e75.mp4`
+- **Right:** `flex flex-col justify-between p-10 sm:p-16`
+  - **Top:** logo + "NetRescue" (15px medium, white/70). Paragraph: *"The next evolution of resilient overlay networking. Built for those who refuse to trust a black box."* — `text-white/40 max-w-sm`.
+  - **Bottom:** `© 2026 NetRescue Labs. All rights reserved.` — `text-white/25 text-[12px] mt-12`.
+
+---
+
+## 4. Routing Model
+
+```
+/                       → Landing (Section 0–5 + Footer)
+/features               → Features Index page
+/features/feature-a     → Feature A detail page
+/features/feature-c     → Feature C detail page
+/features/feature-d     → Feature D detail page
+```
+
+**Router:** `react-router-dom` with a `Layout` route holding Navbar + Footer. Landing and features pages share the same Navbar/Footer to preserve identity.
+
+**Scroll restoration:** on route change, scroll to top of the new page's scroll container (not the window). Use a small `ScrollToTop` component wired to `useLocation`.
+
+**Page transitions:** wrap `<Outlet />` in `<AnimatePresence mode="wait">`. Enter: `opacity 0→1, y 20→0` (spring `{260, 26}`, 0.35s). Exit: `opacity 1→0` (0.2s).
+
+**Deep-linkable anchors:** each section on a feature page has an `id` (`#purpose`, `#specification`, `#acceptance`, `#research`). Sidebar nav uses `<a href="#id">` with `scroll-behavior: smooth` on the container.
+
+**Back navigation:** a breadcrumb at the top of every feature page (`Features / Feature A`) and a `Back` button that calls `navigate(-1)`.
+
+**Optional overlay:** the landing page may render a hover-preview `FeatureOverlay` on card hover (desktop only), but the primary action is navigation. Overlay is not required for acceptance.
+
+---
+
+## 5. Features Pages
+
+### 5.1 Features Index — `/features`
+
+**Purpose:** a landing-within-landing that presents the three features as large, clickable entries.
+
+**Layout:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  [Sticky header: logo pill | breadcrumb "Home / Features"│
+│                    | Download button ]                   │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  [Full-width hero band, 60vh]                            │
+│  Video: reuse Section 4 video, darkened 60%              │
+│  Watermark: "FEATURES" (Anton SC, opacity 0.08)          │
+│  H1: "Three / Features"                                  │
+│  Sub: "Each independently demonstrable. Each measured."  │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  [Feature list — three full-width rows, alternating]     │
+│                                                          │
+│  01 ── HYSTERESIS RECOVERY                               │
+│      tagline + 3 bullet highlights + [Open →]            │
+│                                                          │
+│  02 ── MULTIPATH TRANSFER                                │
+│      tagline + 3 bullet highlights + [Open →]            │
+│                                                          │
+│  03 ── NETWORK EMULATION                                 │
+│      tagline + 3 bullet highlights + [Open →]            │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  [Footer — same as landing]                              │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Hero band spec:**
+- `h-[60vh] min-h-[420px]`, video `object-cover`, overlay `bg-black/60`.
+- Watermark: "FEATURES" in Anton SC, `clamp(100px, 22vw, 400px)`, opacity 0.08, centered.
+- H1: "Three / Features" — same type scale as landing §4 heading.
+- Sub: `text-white/50 text-[15px] sm:text-[17px] max-w-xl`.
+
+**Feature row spec (per feature):**
+- `grid grid-cols-1 md:grid-cols-[120px_1fr_auto] gap-6 md:gap-12 py-16 border-t border-white/10`
+- Col 1: index `01` / `02` / `03` — `text-white/30 text-[14px] tracking-[0.2em]` (ScrambleIn on view).
+- Col 2: title + tagline + 3 bullet highlights, staggered fade-up.
+- Col 3: `Open →` link — `text-white text-[13px] tracking-[0.15em] uppercase` with `ArrowUpRight`. Hover: `text-white/70`.
+- Whole row is wrapped in `<Link to="/features/:id">` so the entire row is clickable.
+
+---
+
+### 5.2 Feature Detail Page — `/features/:id`
+
+**Purpose:** full specification for one feature, deep-linkable, with sidebar navigation and cross-feature prev/next.
+
+**Layout (desktop ≥ md):**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  [Sticky header: logo | breadcrumb "Features / Feature A" |  │
+│                  prev ←  next →  | Download ]                │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  [Hero band — 50vh]                                          │
+│  Video: reuse a video, darkened 65%                          │
+│  Watermark: "A" / "C" / "D" (Anton SC, opacity 0.10)         │
+│  H1: feature title (ScrambleIn)                              │
+│  Sub: heroSub paragraph                                      │
+│                                                              │
+├───────────────┬──────────────────────────────────────────────┤
+│               │                                              │
+│  [Sidebar]    │  [Content — max-w-3xl]                       │
+│  w-48         │                                              │
+│  sticky       │  ## Purpose                                  │
+│  top-24       │  ## Specification                            │
+│               │      • state machine table                   │
+│  • Purpose    │      • routing & loop protection             │
+│  • Spec       │  ## Acceptance Criteria                      │
+│  • Acceptance │  ## Research Anchor                          │
+│  • Research   │                                              │
+│               │  ────────                                    │
+│               │  [Prev feature]     [Next feature]           │
+│               │                                              │
+├───────────────┴──────────────────────────────────────────────┤
+│  [Footer — same as landing]                                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Header (sticky, `z-40`, `h-16`, `bg-black/60 backdrop-blur-md border-b border-white/10`):**
+- Left: `NetRescueLogo` (18px) + breadcrumb `Home / Features / Feature A` (`text-white/40 text-[13px]`).
+- Center: prev/next chevrons (`ChevronLeft` / `ChevronRight` from lucide) — navigate to adjacent feature in the `features.ts` order. Disabled at ends.
+- Right: Download button (same as landing, smaller: `h-9 px-4`).
+
+**Hero band:**
+- `h-[50vh] min-h-[360px]`, video `object-cover`, overlay `bg-black/65`.
+- Watermark: single letter (`A` / `C` / `D`) in Anton SC, `clamp(160px, 30vw, 480px)`, opacity 0.10, `left-8` aligned.
+- H1: feature title — `text-[clamp(36px,7vw,72px)] font-light leading-[0.95] tracking-[-0.03em]`. ScrambleIn 200ms.
+- Sub: `heroSub` — `text-white/50 text-[15px] sm:text-[17px] max-w-xl`. Fade-up y20, delay 0.3s.
+
+**Sidebar (md+ only):**
+- `w-48`, `sticky top-24 self-start`, `border-l border-white/10 pl-6`.
+- Anchor links: Purpose, Specification, Acceptance Criteria, Research Anchor.
+- Active section: `text-white` + `border-l-2 border-white -ml-[calc(1.5rem+1px)] pl-[calc(1.5rem-1px)]`. Inactive: `text-white/40 hover:text-white/70`.
+- Use an `IntersectionObserver` to track the active section.
+
+**Content sections (per feature — content lives in `features.ts`):**
+- Section heading: `text-white text-[22px] sm:text-[28px] font-light tracking-[-0.02em] mb-6`.
+- Body: `text-white/60 text-[15px] sm:text-[16px] leading-relaxed mb-10`.
+- Tables: `w-full border border-white/10 rounded-lg overflow-hidden` — header row `bg-white/[0.03] text-white/70`, cells `text-white/50 border-t border-white/10`, padding `px-4 py-3 text-[14px]`.
+- Bullet lists: `list-disc pl-6 text-white/50 space-y-2`.
+
+**Prev/Next footer row:**
+- `mt-20 pt-8 border-t border-white/10 flex justify-between`.
+- Each side is a `<Link>` with label ("Previous: Hysteresis Recovery") and arrow. Hover: `text-white/70`.
+
+**Mobile (`< md`):** sidebar collapses into a horizontal scrollable pill bar under the hero. Prev/Next becomes full-width stacked buttons.
+
+---
+
+### 5.3 Per-Feature Content Blocks
+
+**Feature A — Hysteresis-Based Self-Healing Recovery**
+
+| Section | Content |
+|---|---|
+| **Purpose** | Maintain overlay connectivity when a forwarding process or link becomes unavailable, while avoiding route flapping caused by oscillation around a single detection threshold. |
+| **Specification — state machine** | Table: `HEALTHY → SUSPECT` (misses ≥ F_thresh, 3); `SUSPECT → FAILED` (misses ≥ N, 5); `FAILED → HEALTHY` (successes ≥ R_thresh, 5); Dead band (R_thresh / F_thresh ≥ 1.5). |
+| **Specification — routing & loop protection** | Hop limits, route versioning, next-hop validation, stale-route rejection, unreachable reporting. |
+| **Acceptance Criteria** | Recovery with alternate route; no alternate route → unreachable; no persistent loops; sweep `hysteresis_ratio ∈ {1.0 … 3.0}` produces trade-off curve. |
+| **Research Anchor** | Maltz thesis (CMU) §7.6.1; two-state hysteresis in VNT control. |
+
+**Feature C — Multipath File Transfer with DB-CMT**
+
+| Section | Content |
+|---|---|
+| **Purpose** | Transfer a file in chunks across multiple logical overlay paths; reconstruct and verify integrity under heterogeneous conditions. |
+| **Specification — scheduler variants** | Table: DB-DSP (min estimated arrival time, primary); Round-Robin (cycle, naïve baseline); Weighted RR (bandwidth-proportional); Single-Path TCP (lowest RTT, lower bound); Naïve Delay-Aware (FD only, ablation). |
+| **Specification — retransmission** | RTX-CL: pick path by `cwnd` + loss, not delay alone. Bounded retries; bounded failure on exhaustion. |
+| **Acceptance Criteria** | SHA-256 match; interruption recovery; DB-DSP ≤ 50% out-of-order vs RR under 5:1 heterogeneity; RTX-CL ≤ 90% of RTX-CWND transfer time under 5% loss. |
+| **Research Anchor** | Verma et al., *J. Network and Systems Management*, 2022; CMT-SCTP literature. |
+
+**Feature D — Linux-Based Network Emulation**
+
+| Section | Content |
+|---|---|
+| **Purpose** | Reproduce network conditions and serve as the experimental apparatus for Features A and C. |
+| **Specification — `tc`/`netem` parameters** | Table: Delay (`delay TIME [JITTER [CORRELATION]]`); Loss (`loss random PERCENT [CORRELATION]`); Duplication; Corruption; Reordering; Rate limit; Queue depth; Seed. |
+| **Specification — apparatus** | Fault injection primitives + hysteresis sweep harness for A; path heterogeneity config + scheduler comparison harness for C. |
+| **Acceptance Criteria** | Repeatability; documented units/conditions/repetitions/environment; deterministic with fixed seed; config verified and logged per run. |
+| **Research Anchor** | Linux `tc-netem(8)`; emulation in TCP BBR / VM research. |
+
+---
+
+## 6. Data Model — `features.ts`
+
+Single source of truth for landing card grid, features index, feature detail pages, prev/next navigation, and breadcrumbs.
+
+```ts
+export type FeatureId = 'feature-a' | 'feature-c' | 'feature-d';
+
+export interface FeatureSection {
+  id: string;                     // anchor id, e.g. 'specification'
+  heading: string;                // "Specification"
+  body?: string;                  // paragraph
+  bullets?: string[];             // optional bullet list
+  table?: {
+    columns: string[];
+    rows: string[][];
+  };
+}
+
+export interface Feature {
+  id: FeatureId;
+  index: string;                  // "A" | "C" | "D"
+  title: string;                  // "Hysteresis Recovery"
+  tagline: string;                // landing card short desc
+  heroSub: string;                // detail page subtitle
+  watermark: string;              // "A" | "C" | "D"
+  heroVideoUrl: string;           // which video to reuse
+  highlights: string[];           // 3 bullets on the index row
+  sections: FeatureSection[];     // detail page content
+  researchAnchor: string[];       // anchor list
+}
+
+export const features: Feature[] = [
+  { id: 'feature-a', index: 'A', /* … */ },
+  { id: 'feature-c', index: 'C', /* … */ },
+  { id: 'feature-d', index: 'D', /* … */ },
+];
+
+export const getFeature = (id: string) =>
+  features.find(f => f.id === id);
+
+export const getAdjacent = (id: string) => {
+  const i = features.findIndex(f => f.id === id);
+  return {
+    prev: i > 0 ? features[i - 1] : null,
+    next: i >= 0 && i < features.length - 1 ? features[i + 1] : null,
+  };
+};
+```
+
+---
+
+## 7. Accessibility Checklist
+
+- All feature cards and index rows are `<Link>` or wrapped in `<Link>`; keyboard-accessible by default.
+- Feature detail pages set `document.title` to the feature title on mount.
+- Prev/Next links have visible focus rings (`outline outline-1 outline-white/40`).
+- Sidebar anchors use `<a href="#id">` and scroll the container, not the window.
+- Overlay (if enabled) uses `role="dialog" aria-modal="true"`.
+- All motion respects `prefers-reduced-motion` — springs collapse to 0-duration fades; mouse-scrub disabled (poster frame shown).
+- Contrast: body ≥ `white/45`, labels ≥ `white/40`, large text ≥ `white/30`.
+- Videos: `aria-hidden="true"`, `preload="metadata"`, poster fallback for reduced motion and slow networks.
+
+---
+
+## 8. Assets to Source (replace placeholders)
+
+| Slot | NetRescue content |
+|---|---|
+| Landing hero video | Slow horizontal pan across server racks / fibre patch panel, cold blue lighting |
+| Landing Section 2 video | Abstract node-link topology animating in slow motion |
+| Landing Section 3 video | Macro of LED indicators blinking on network switch |
+| Landing Section 4 video | Dark data center corridor with depth-of-field |
+| Footer video | Circuit board macro with shallow depth of field |
+| Features index hero video | Reuse Section 4 video |
+| Feature A hero video | Reuse Section 2 video |
+| Feature C hero video | Reuse Section 3 video |
+| Feature D hero video | Reuse Section 4 video |
+| Watermark words | `RESILIENCE` (landing), `FEATURES` (index), `A` / `C` / `D` (detail pages) |
+
+Until NetRescue-specific footage is available, use the five CloudFront URLs listed in §3 as placeholders.
+
+---
+
+## 9. Component Tree
+
+```
+<App>
+  <Router>
+    <Layout>                                  // Navbar + Footer + Outlet
+      <AnimatePresence mode="wait">
+        <Routes>
+          <Route path="/"                element={<LandingPage />} />
+          <Route path="/features"        element={<FeaturesIndexPage />} />
+          <Route path="/features/:id"    element={<FeatureDetailPage />} />
+          <Route path="*"                element={<NotFoundPage />} />
+        </Routes>
+      </AnimatePresence>
+    </Layout>
+  </Router>
+</App>
+
+// LandingPage
+<LandingPage>
+  <HeroSection />                             // mouse-scrub video #1
+  <CinematicSection />                        // scroll-driven 3D text, video #2
+  <MetricsSection />                          // video #3
+  <FeaturesGrid />                            // video #4, <Link> cards
+  <ArchitectureSection />                     // pure black
+</LandingPage>
+
+// FeaturesIndexPage
+<FeaturesIndexPage>
+  <FeaturesHero />                            // 60vh hero
+  <FeatureRowList features={features} />      // three <Link> rows
+</FeaturesIndexPage>
+
+// FeatureDetailPage
+<FeatureDetailPage>
+  <PageHeader />                              // breadcrumb + prev/next + download
+  <FeatureHero feature={feature} />
+  <div className="grid md:grid-cols-[200px_1fr]">
+    <SidebarNav sections={feature.sections} />
+    <FeatureContent sections={feature.sections} />
+  </div>
+  <PrevNextFooter prev={prev} next={next} />
+</FeatureDetailPage>
+```
+
+---
+
+## 10. Build & Dependencies
+
+```json
+{
+  "dependencies": {
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^0.344.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.5.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
+  }
+}
+```
+
+---
+
+## 11. Acceptance Checklist (Design)
+
+**Landing:**
+- [ ] Hero video scrubs on horizontal mouse movement (delta-based, seeked-chained, sensitivity 0.8); no autoplay on hero.
+- [ ] Sections 2–4 and Footer autoplay muted loop their videos.
+- [ ] Space Mono applied globally; Anton SC only for watermarks.
+- [ ] Logo renders as 4-fold symmetric SVG at 18×18 (pills) and 24×24 (headers).
+- [ ] Clicking any feature card on the landing **navigates to `/features/:id`** (URL changes, no overlay).
+
+**Features index:**
+- [ ] `/features` renders hero band + three feature rows.
+- [ ] Each row is a full `<Link>` to the corresponding detail page.
+- [ ] Breadcrumb shows `Home / Features`.
+
+**Feature detail:**
+- [ ] `/features/feature-a`, `/features/feature-c`, `/features/feature-d` render without error.
+- [ ] Each page shows hero band, sidebar nav, four content sections (Purpose, Specification, Acceptance, Research), and prev/next footer.
+- [ ] Sidebar tracks active section via `IntersectionObserver`.
+- [ ] Deep links work: `/features/feature-a#specification` scrolls to that section.
+- [ ] Prev/next links navigate within `features.ts` order; disabled at ends.
+- [ ] `document.title` updates to the feature title.
+
+**General:**
+- [ ] Same Navbar and Footer on every route.
+- [ ] Page transitions: fade + y-slide (spring `{260, 26}`), `AnimatePresence mode="wait"`.
+- [ ] Scroll position resets to top of new route's container on navigation.
+- [ ] All motion honors `prefers-reduced-motion`.
+- [ ] No external APIs, no telemetry, no analytics scripts.
+- [ ] Card grid, index rows, detail pages, prev/next, and breadcrumbs driven by a single `features.ts`.
+
+---
+
+*End of design document. This is a design + interaction spec for a marketing/documentation site for NetRescue v5.0; it does not claim the product is implemented.*

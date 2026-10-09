@@ -1,0 +1,578 @@
+# NETRESCUE — Product Requirements Document v5.0
+
+**Research-Proven Self-Healing Recovery, Multipath Transfer & Linux-Based Network Emulation**
+
+| Document field | Value |
+|---|---|
+| Product | NetRescue |
+| Version | research-proven build specification |
+| Status | Planning baseline; targets must be validated by implementation |
+| Type | Software-only networking prototype and experimental test platform |
+| Environment | Local software processes; Linux required for network emulation; PostgreSQL and Docker required |
+| Target OS | **Linux** (primary); Windows/macOS for controller/UI only |
+| Audience | Computer Networks students, systems learners, technical evaluators |
+| Cost / hardware constraint | Free/open-source tools only; no dedicated hardware; **no cloud spend** |
+
+This PRD specifies intended behavior. It does not claim the product is implemented, audited, or production-ready.
+
+---
+
+## 1. Executive Summary
+
+NetRescue is a software-only network resilience and performance engineering platform with **three independently demonstrable features**:
+
+1. **Feature A — Hysteresis-Based Self-Healing Recovery**: maintain overlay connectivity when a forwarding node fails, using a three-state detector with a hysteresis dead band proven to prevent route flapping in overlay and ad hoc networks.
+2. **Feature C — Multipath File Transfer with DB-CMT**: transfer a file in chunks across multiple logical overlay paths using a delay-based scheduler (DB-DSP) and a loss-and-delay-aware retransmission policy (RTX-CL), both validated in peer-reviewed literature.
+3. **Feature D — Linux-Based Network Emulation & Benchmarking**: reproduce network conditions (delay, jitter, loss, rate limit, queue depth) using the Linux `tc`/`netem` kernel facility, which is the standard tool for protocol testing under emulated real-world conditions.
+
+PostgreSQL stores experiment configuration, events, metrics, and audit history. Docker packages PostgreSQL and optionally the API/dashboard for reproducible local runs. No cloud services, no third-party APIs, and no telemetry are used. Linux is required for Features C and D because `tc`/`netem` are kernel-level facilities that provide emulation fidelity unattainable in pure Python.
+
+### 1.1 Product Promise
+
+Demonstrate, measure, and explain how software-defined forwarding and transfer policies behave when network conditions change — using a real Linux kernel network emulator, peer-reviewed scheduling algorithms, and a rigorously validated hysteresis detector — without dedicated hardware or cloud infrastructure.
+
+### 1.2 Non-Goals
+
+- Not a replacement for production SDN controllers, enterprise routers, or carrier routing.
+- Not a claim of novel routing science; differentiation comes from implementation quality, reproducible tests, and measured behavior.
+- Not a safety-critical or emergency communications service.
+- Not a native IP-router replacement; this is an application-level overlay using ordinary sockets.
+- Not an MPTCP implementation or comparison; MPTCP is out of scope for this revision.
+- No IoT devices, physical network appliances, or dedicated security hardware.
+- No cloud CI, no hosted databases, no external APIs, no telemetry.
+
+---
+
+## 2. Architecture and Boundaries
+
+### 2.1 Logical Architecture
+
+```
+                    React dashboard
+                         ↓  HTTP / WebSocket (localhost)
+              FastAPI API and experiment controller
+                  ├── Feature A: recovery controller (hysteresis)
+                  ├── Feature C: transfer coordinator / DB-CMT scheduler
+                  └── Feature D: tc/netem emulation + benchmark runner
+
+     Software forwarding processes ≡ TCP/UDP sockets ≡ software forwarding processes
+                         ↓
+              Linux tc/netem (kernel-level emulation)
+
+                PostgreSQL (local service or Docker container)
+```
+
+### 2.2 Architecture Rules
+
+1. **Control plane manages topology and policy; forwarding plane moves messages.** Forwarding processes must not query PostgreSQL per message.
+2. **Emulation lives in the Linux kernel.** Delay, jitter, loss, and rate limits are applied via `tc qdisc` on the forwarding process's network interface. This is the same methodology used in published research on protocol performance under emulated conditions.
+3. **Controller/DB outage policy**: if the controller or PostgreSQL becomes unavailable, nodes continue forwarding using last valid in-memory state and enter a visible degraded mode. They must not accept unauthenticated control changes.
+4. **Local-only by default**: control endpoints bind to `127.0.0.1` unless explicitly configured otherwise. Do not expose control endpoints to the public internet.
+5. **Linux required for emulation.** The API, dashboard, and controller can run on Windows/macOS, but Features C and D require a Linux host (native, VM, or WSL2) with `tc`/`netem` available.
+
+### 2.3 Deployment Model
+
+| Mode | Description |
+|---|---|
+| **Linux native** | API, node processes, PostgreSQL, and emulation all on one Linux host. |
+| **Linux + Docker** | PostgreSQL and API in Docker; node processes and `tc`/`netem` on the host. |
+| **Docker Compose** | PostgreSQL + API + dashboard in Compose; node processes on the Linux host with `tc`/`netem`. |
+| **Multi-process demo** | Multiple node processes on one Linux host communicate over loopback with `tc`/`netem` applied to virtual interfaces. |
+
+> **Note on WSL2**: WSL2 provides a real Linux kernel and supports `tc`/`netem` in most modern kernels. This is the recommended path for Windows users.
+
+---
+
+## 3. Technology Stack
+
+| Layer | Technology | Responsibility |
+|---|---|---|
+| Language | Python 3.11+ | Controller, node processes, experiments, tests |
+| Networking | `asyncio` + socket APIs | Concurrent socket handling |
+| Transport | TCP and UDP | TCP streams; UDP for heartbeats and benchmark datagrams |
+| Topology | NetworkX | Graph representation and route calculation |
+| API / live updates | FastAPI + WebSockets | Control endpoints and event streaming |
+| Database | **PostgreSQL 15+** | Experiment configs, events, metrics, audit history |
+| DB integration | SQLAlchemy + `psycopg[binary]` | Persistence and data access |
+| Frontend | React + TypeScript | Topology, experiment controls, results |
+| Plots | Matplotlib | Benchmark reports, Pareto frontiers, comparison charts |
+| **Network emulation** | **Linux `tc` / `netem`** | Kernel-level delay, jitter, loss, rate limit, queue depth |
+| **Scheduler algorithms** | **DB-DSP, RTX-CL (DB-CMT)** | Research-proven delay-based scheduling and retransmission |
+| **Failure detection** | **Hysteresis state machine** | Research-proven route flap prevention |
+| Transport security | Python `ssl` + OpenSSL | TLS/mTLS and certificate handling |
+| Message auth | `hmac` + `hashlib` | Integrity/authentication of control messages |
+| Packaging | **Docker + Docker Compose** | Reproducible local environment |
+| Tests | `pytest` | Unit, integration, fault, security regression tests |
+| Code security | Bandit + Semgrep CE | Common insecure-code patterns |
+| Dependency scan | pip-audit | Known dependency vulnerabilities |
+| Version control | Git | Local collaboration |
+
+**Cost note:** all tools listed are free/open source. No cloud, CI, or hosted services are required. Linux is required for `tc`/`netem`; this is available on any modern distribution or via WSL2 at no cost.
+
+---
+
+## 4. Feature A — Hysteresis-Based Self-Healing Recovery
+
+### 4.1 Purpose
+
+Maintain overlay connectivity when a forwarding process or configured link becomes unavailable, while avoiding route flapping caused by oscillation around a single detection threshold.
+
+### 4.2 Background
+
+Naïve threshold detection declares a link healthy above a threshold and failed below it. When quality oscillates around that threshold, the system repeatedly declares failure and recovery, causing routing instability. This is a well-documented problem in overlay and ad hoc networks: routes flap between approximately two alternatives, resulting in high and low link utilization swings. Hysteresis solves this by using **two distinct thresholds**: a lower threshold to enter the failed state, and a higher threshold to return to the healthy state. The gap between them is a dead band that absorbs oscillations. Research has demonstrated that two-state hysteresis significantly improves both stability and performance in overlay routing.
+
+### 4.3 Functional Requirements
+
+**Topology representation**
+- Represent nodes and links as a graph with explicit status and configurable link metrics.
+- Run a forwarding process per software node with a node ID and forwarding/next-hop table.
+
+**Heartbeat mechanism**
+- Send periodic heartbeats over UDP (TCP fallback).
+- Track per-link heartbeat history as a sliding window (bitmap or ring buffer).
+- Authenticate heartbeat fields with HMAC; include a sequence number and freshness window (see §9).
+
+**Hysteresis state machine**
+
+| Transition | Condition | Default |
+|---|---|---|
+| `HEALTHY → SUSPECT` | Consecutive missed heartbeats ≥ `F_thresh` | 3 |
+| `SUSPECT → FAILED` | Consecutive missed heartbeats ≥ `N` | 5 |
+| `FAILED → HEALTHY` | Consecutive successful heartbeats ≥ `R_thresh` | 5 |
+| Dead band | `R_thresh > F_thresh` | ratio ≥ 1.5 |
+
+- No direct `HEALTHY ↔ FAILED` transitions; all transitions pass through `SUSPECT`.
+- `F_thresh`, `N`, `R_thresh`, and heartbeat interval are configurable at run start.
+- `hysteresis_ratio = R_thresh / F_thresh` is a primary experimental variable.
+- **Filtering option**: support an optional EWMA filter on heartbeat quality to accelerate convergence to stable state, as suggested by hysteresis research.
+
+**Routing and loop protection**
+- On `FAILED`, calculate a route excluding unavailable elements and update forwarding state.
+- Prevent loops with hop limits, route versioning, next-hop validation, and stale-route rejection.
+- If no alternate route exists, mark the destination unreachable rather than reporting false recovery.
+
+**Logging and observability**
+- Log heartbeat loss, state transitions, route calculations, route installations, and resumed delivery.
+- Emit a `state_transition` event for every transition.
+- Emit a `route_flap` counter per link per run.
+
+### 4.4 Acceptance Criteria
+
+- With an alternate route, traffic resumes after a forwarding process is terminated.
+- Without an alternate route, the system reports unreachable rather than claiming recovery.
+- Repeated fail/restart tests do not create a persistent forwarding loop.
+- **Hysteresis evaluation**: across `hysteresis_ratio ∈ {1.0, 1.5, 2.0, 2.5, 3.0}`, produce a measurable trade-off curve between route flap count and recovery time.
+- Recovery time and sent/received message counts are recorded per run.
+
+### 4.5 Research Grounding
+
+| Topic | Source |
+|---|---|
+| Route hysteresis for ad hoc/overlay networks | Maltz thesis (CMU), §7.6.1 |
+| Two-state utilization hysteresis | VNT control literature; stability and performance improvement |
+| Hysteresis-based layered traffic engineering | Overlay routing stability research |
+
+---
+
+## 5. Feature C — Multipath File Transfer with DB-CMT
+
+### 5.1 Purpose
+
+Transfer a file in chunks across multiple logical overlay paths, reconstruct it, verify integrity, and compare a research-proven delay-based scheduler (DB-DSP) and retransmission policy (RTX-CL) against baselines under identical emulated conditions.
+
+### 5.2 Background
+
+The central problem in multipath transfer is **out-of-order arrival**. When paths have heterogeneous delays, packet loss rates, and bandwidths, naïve schedulers send chunks on high-delay paths that arrive long after chunks sent later on low-delay paths, causing receiver buffer blocking and unnecessary congestion window reductions. The DB-CMT approach addresses this with three components:
+- **DB-DSP**: Delay-Based Data chunk Scheduling Policy — transmits data on multiple paths according to their delay.
+- **RTX-CL**: Retransmission Path Selection Policy — selects the retransmission path considering congestion window and packet loss rate, not delay alone.
+- **DB-FRP**: Delay-Based Fast Retransmission Policy.
+
+Simulation results show DB-CMT outperforms RTX-CWND and RTX-LOSSRATE retransmission schemes, with improved throughput, fewer timeouts, and reduced file transfer time.
+
+### 5.3 Functional Requirements
+
+**Chunking and integrity**
+- Split files into chunks with transfer ID, chunk index, total count, and integrity metadata.
+- Verify the completed file with SHA-256 on both source and receiver.
+- Display progress, elapsed time, per-path utilisation, retries, and integrity status.
+- Document which reliability guarantees are implemented by the application protocol versus TCP.
+
+**Path model**
+- Maintain a separate logical path per configured next-hop route.
+- Each path is a distinct TCP connection between the same overlay endpoints, forced through different intermediate nodes to simulate topological diversity.
+- Path characteristics (delay, loss, bandwidth) are emulated via `tc`/`netem` on each path's virtual interface.
+
+**Scheduler variants**
+
+| Variant | Rule | Role | Source |
+|---|---|---|---|
+| **DB-DSP** | Send on path minimising estimated arrival time, accounting for delay | Primary algorithm | DB-CMT |
+| Round-Robin | Cycle chunks across paths in order | Naïve baseline | Standard |
+| Weighted Round-Robin | Allocate chunks proportional to estimated bandwidth | Bandwidth-aware baseline | Standard |
+| Single-Path TCP | Use only the lowest-RTT path | Lower bound | Standard |
+| Naïve Delay-Aware | Use only forward delay, ignore throughput | DB-DSP ablation | Derived |
+
+**Estimation**
+- Estimate forward delay `FD_i` from RTT or timestamped probes; smooth with EWMA.
+- Estimate throughput `TP_i` from `cwnd_i / RTT_i` or measured delivery rate; smooth with EWMA.
+- Update estimates after each ACK.
+
+**Retransmission policy (RTX-CL)**
+- Bounded retry policy per chunk and per transfer.
+- On retransmission, select the path using **RTX-CL**: choose the path with larger `cwnd` size when delays are similar; otherwise account for delay and loss rate jointly.
+- On retry exhaustion, report a clear bounded failure listing unacknowledged chunks.
+
+**Path failure handling**
+- If a path enters `FAILED` (via Feature A's detector or a local timeout), remove it from the scheduler's candidate set and re-route in-flight chunks.
+- Interrupting one path must not corrupt the file; the transfer either recovers or reports a clear bounded failure.
+
+### 5.4 Acceptance Criteria
+
+- A successful transfer produces a receiver SHA-256 matching the source.
+- Missing, duplicate, and out-of-order chunks are handled per the documented protocol.
+- Interrupting one path does not corrupt the file.
+- **Scheduler comparison**: under heterogeneous paths (e.g., 10 ms / 50 ms / 100 ms RTT), DB-DSP achieves measurably lower out-of-order chunk count than round-robin at equal or better goodput.
+- **Retransmission comparison**: RTX-CL achieves lower file transfer time than RTX-CWND under mixed loss conditions, consistent with published DB-CMT results.
+- All comparison runs are repeated ≥ 5 times with median and p95 reported.
+
+### 5.5 Research Grounding
+
+| Topic | Source |
+|---|---|
+| DB-CMT / DB-DSP / RTX-CL | Verma et al., *J. Network and Systems Management*, 2022 |
+| Delay-based scheduling in CMT | CMT-SCTP literature; delay-based chunk scheduling reduces reordering |
+| Receive buffer blocking | Liu et al., IEEE, 2008 |
+
+---
+
+## 6. Feature D — Linux-Based Network Emulation & Benchmarking
+
+### 6.1 Purpose
+
+Independently measure network behaviour under configurable conditions, and serve as the controlled experimental apparatus for Features A and C. Emulation is performed by the **Linux kernel's `tc`/`netem` queue discipline**, the standard tool for protocol testing under emulated real-world conditions.
+
+### 6.2 Functional Requirements — Standalone Benchmarking
+
+- Run scenarios on a fixed topology with no self-healing controller requirement.
+- Measure RTT/latency, throughput, message/datagram loss, jitter, and run duration.
+- Define and document measurement semantics for each metric.
+- Store scenario configuration, software version, host details, and raw results in PostgreSQL.
+- Generate comparison reports and CSV exports; report median and p95 for repeated runs.
+- Label synthetic conditions clearly; never present emulated values as real-world measurements.
+
+### 6.3 Functional Requirements — Linux `tc`/`netem` Emulation
+
+Applied to each path's virtual interface via `tc qdisc`:
+
+| Condition | `tc`/`netem` parameter | Notes |
+|---|---|---|
+| Delay | `delay TIME [JITTER [CORRELATION]]` | Milliseconds; supports uniform, normal, Pareto distributions |
+| Jitter | `delay TIME JITTER` | Correlation parameter controls how much previous delay impacts current value |
+| Message/datagram loss | `loss random PERCENT [CORRELATION]` | Supports state models and Gilbert-Elliot for correlated loss |
+| Duplication | `duplicate PERCENT [CORRELATION]` | Optional; useful for stress testing |
+| Packet corruption | `corrupt PERCENT [CORRELATION]` | Optional; simulates bit errors |
+| Reordering | `reorder PERCENT [CORRELATION] [gap DISTANCE]` | Simulates out-of-order delivery |
+| Rate limit | `rate RATE [PACKETOVERHEAD [CELLSIZE [CELLOVERHEAD]]]` | Token bucket rate limiting |
+| Queue depth | `limit COUNT` | Maximum packets held when doing delay |
+| Seed | `seed VALUE` | Deterministic emulation for reproducibility |
+
+- All emulation parameters are per-path and configurable per run.
+- Emulation must be deterministic when a fixed seed is supplied.
+- Emulation configuration is applied and verified before each run; a hash of the configuration is stored with the run record.
+
+### 6.4 Functional Requirements — Apparatus for Feature A
+
+- Fault injection primitives: kill a node process, drop a link (`tc qdisc del`), delay a link, rate-limit a link.
+- **Hysteresis sweep harness**: run the same recovery scenario with `hysteresis_ratio ∈ {1.0, 1.5, 2.0, 2.5, 3.0}` and collect `(recovery_time, route_flap_count)` pairs.
+- Emit a Pareto frontier plot of stability versus recovery time.
+
+### 6.5 Functional Requirements — Apparatus for Feature C
+
+- Path heterogeneity configuration: set per-path delay, bandwidth, and loss independently via `tc`/`netem`.
+- **Scheduler comparison harness**: run the same transfer under the same path configuration with each scheduler variant (DB-DSP, RR, WRR, single-path, naïve delay-aware) and collect comparison metrics.
+- Comparison tables and plots: transfer time, goodput, out-of-order count, retransmission count, per-path utilisation.
+
+### 6.6 Measurement Semantics
+
+- Distinguish **application-message loss** from **datagram loss**; TCP retransmissions can hide packet loss.
+- Record the measurement point for every metric (application layer, socket layer, kernel `tc` statistics).
+- Document that all conditions are emulated via `tc`/`netem` and that emulated loss/delay approximates but does not perfectly reproduce real NIC/switch behaviour.
+
+### 6.7 Acceptance Criteria
+
+- Users can repeat the same scenario and compare runs with the same configuration.
+- Reports include units, workload, repetition count, environment, and limitations.
+- Benchmarking works with fixed routes and without the other feature modules.
+- The hysteresis sweep harness produces a documented trade-off curve.
+- The scheduler comparison harness produces a complete comparison table for all variants.
+- Emulation is reproducible given the same seed.
+- `tc`/`netem` configuration is verified and logged for every run.
+
+### 6.8 Research Grounding
+
+| Topic | Source |
+|---|---|
+| `tc`/`netem` for protocol testing | Linux man page; standard tool for emulating real-world network properties |
+| Emulation in TCP performance research | Used in BBR/Virtual Machine research to emulate link conditions |
+| Docker bridge network emulation | GitHub project applies `tc`/`netem` on bridge-side veth interfaces |
+
+---
+
+## 7. Data Model
+
+| Entity | Key fields | Purpose |
+|---|---|---|
+| Node | `node_id`, `status`, `last_seen_at`, `software_version` | Node inventory and status |
+| Link | `link_id`, `endpoints`, `status`, `capacity`, `latency`, `loss_rate` | Topology and link metrics |
+| EmulationConfig | `link_id`, `delay_ms`, `jitter_ms`, `loss_rate`, `rate_limit`, `queue_depth`, `seed`, `run_id` | Per-link `tc`/`netem` parameters |
+| HysteresisConfig | `link_id`, `f_thresh`, `n`, `r_thresh`, `hysteresis_ratio`, `run_id` | Hysteresis parameters per link per run |
+| StateTransition | `link_id`, `from_state`, `to_state`, `timestamp`, `run_id` | State machine history |
+| RouteVersion | `version`, `source`, `destination`, `next_hops`, `reason`, `timestamp` | Route decisions and history |
+| Experiment / Run | `id`, `feature`, `config`, `code_version`, `start/end`, `status` | Reproducible test setup and execution |
+| MetricSample | `run_id`, `timestamp`, `name`, `value`, `unit`, `labels` | Raw measurements |
+| Event | `timestamp`, `severity`, `component`, `event_type`, `run_id` | Diagnostics |
+| AuditEvent | `timestamp`, `principal`, `action`, `resource`, `result` | Administrative accountability |
+| Transfer / Chunk | `transfer_id`, `chunk_index`, `hash`, `attempts`, `status`, `path_id` | Transfer progress and integrity |
+| PathEstimate | `run_id`, `path_id`, `fd_estimate`, `tp_estimate`, `cwnd_estimate`, `timestamp` | Scheduler state snapshots |
+| ComparisonRun | `run_id`, `variant`, `metrics_json` | Scheduler comparison results |
+| TcConfig | `run_id`, `link_id`, `qdisc_params`, `applied_at`, `verified` | `tc`/`netem` configuration audit |
+
+**Retention rule:** avoid writing one row per forwarded message. Batch metric writes at ≥ 1 Hz. Keep PostgreSQL out of the forwarding hot path.
+
+---
+
+## 8. API and Dashboard
+
+### 8.1 API Endpoints
+
+| Area | Operations | Access rule |
+|---|---|---|
+| Health | `GET /health`, `GET /ready` | Sanitised response; no secrets |
+| Topology | `GET /api/topology`, `GET /api/nodes` | Read-only role may view state |
+| Recovery | `POST /api/recovery/runs`, `POST /api/nodes/{id}/fault` | Operator role; explicit destructive action |
+| Recovery config | `POST /api/recovery/runs/{id}/hysteresis` | Operator role; audited |
+| Transfer | `POST /api/transfers`, `GET /api/transfers/{id}` | Auth; size/path validation |
+| Transfer comparison | `POST /api/transfers/comparisons` | Operator role; schedules multi-variant run |
+| Benchmark | `POST /api/benchmarks`, `GET /api/benchmarks/{id}` | Auth; resource caps |
+| Emulation config | `POST /api/emulation/config` | Operator role; applies `tc`/`netem`, audited |
+| Hysteresis sweep | `POST /api/benchmarks/hysteresis-sweep` | Operator role; parameterised sweep |
+| Scheduler comparison | `POST /api/benchmarks/scheduler-comparison` | Operator role; parameterised comparison |
+| Results | `GET /api/runs/{id}/metrics`, `GET /api/runs/{id}/export.csv` | Authenticated; no arbitrary file access |
+| Audit/events | `GET /api/audit`, `WebSocket /ws/events` | Role-filtered and authenticated |
+
+### 8.2 Dashboard Screens
+
+- **Overview:** topology, node status, active run, degraded-state banner.
+- **Recovery lab:** preset topology, fault/restart controls, hysteresis parameter controls, event timeline, recovery metrics, route flap counter.
+- **Recovery analysis:** hysteresis sweep results, Pareto frontier of stability versus recovery time.
+- **Transfer lab:** file selection, scheduler selection, progress, retries, SHA-256 result, per-path utilisation chart.
+- **Transfer comparison:** head-to-head results across DB-DSP, round-robin, weighted round-robin, naïve delay-aware, and single-path; comparison table and plots.
+- **Emulation lab:** per-path delay/jitter/loss/rate/queue configuration via `tc`/`netem`; seed control; verification of applied configuration.
+- **Benchmark lab:** scenario configuration, repeated runs, graphs, comparison and CSV export.
+- **Security/audit:** rejected actions, authentication events, and audit trail; never display private keys or credentials.
+- **Run detail:** full configuration, environment, raw data, summary, reproduction instructions, limitations.
+
+---
+
+## 9. Security Requirements
+
+| Threat | Required control | Verification |
+|---|---|---|
+| Unknown node joins | Certificate-based identity and mutual authentication | Connection rejection test |
+| Forged heartbeat | HMAC or protected TLS channel | Invalid MAC rejected |
+| Replay of old heartbeat | Sequence number + freshness window | Stale message rejected |
+| Replay of stale route update | Route versioning + authenticated channel | Stale route rejected |
+| Unauthorised route change | Authenticated API, role checks, audit event | Negative authorisation tests |
+| Parameter tampering | Signed run configs; hysteresis/emulation changes audited | Configuration integrity test |
+| `tc`/`netem` injection | Emulation config requires operator role; applied configuration logged and hashed | Negative authorisation test; config audit |
+| Resource exhaustion | Payload limits, rate limits, bounded queues/retries, timeouts | Malformed and load tests |
+| Secret leakage | Secrets out of source and logs; rotation process | Secret scan and log review |
+| Vulnerable dependency | Pinned dependencies; regular `pip-audit` | Scan report reviewed |
+| Controller/DB outage | Last-known valid state; visible degraded mode | Disconnect tests |
+
+**Security rules**
+1. Do not implement custom encryption; use standard TLS libraries. HMAC provides authenticity/integrity, not confidentiality.
+2. Do not trust a node merely because its IP is reachable.
+3. Separate node, operator, and read-only dashboard identities; least-privilege DB roles.
+4. Audit security events without logging secrets or private keys.
+5. Security scanners are not proof of security; test runtime behaviour and review findings.
+6. Bind control endpoints to loopback by default.
+7. `tc`/`netem` commands are executed with least privilege; do not run node processes as root unless required for `tc` configuration.
+
+---
+
+## 10. Testing and Evaluation
+
+| Test type | Coverage | Pass condition |
+|---|---|---|
+| Unit | Routing, hysteresis state machine, DB-DSP arrival-time calculation, RTX-CL path selection, chunk assembly, checksum | Deterministic expected output |
+| Integration | Socket communication, controller updates, PostgreSQL, WebSocket events, `tc`/`netem` application | End-to-end flows pass locally |
+| Fault injection | Kill/restart node, `tc qdisc del`, delay/drop link, rate-limit, overload queue | Expected state and metrics recorded |
+| Emulation validation | Delay/jitter/loss/rate/queue accuracy via `tc`/`netem` | Measured values within documented tolerance of configured values |
+| Hysteresis validation | Sweep `hysteresis_ratio` from 1.0 to 3.0 | Documented trade-off curve produced |
+| Scheduler validation | DB-DSP vs. RR/WRR/naïve/single under heterogeneous paths | DB-DSP has lower out-of-order count |
+| Retransmission validation | RTX-CL vs. RTX-CWND under mixed loss | RTX-CL has lower transfer time |
+| Security | Unknown cert, invalid HMAC, replay, unauthorised API, oversized input | Rejected safely; event logged |
+| Resilience | Controller/DB outage, slow destination, retry exhaustion | Bounded behaviour; no false success |
+| Repeatability | Repeated runs per scenario | Configuration and raw metrics retained |
+
+### 10.1 Required Demo Scenarios
+
+1. Compare static routing with hysteresis-enabled self-healing after a forwarding node is terminated.
+2. Compare hysteresis-enabled recovery against naïve threshold recovery; show route flap count difference.
+3. Transfer a file over multiple paths with DB-DSP; interrupt one path; verify final SHA-256.
+4. Compare DB-DSP, round-robin, weighted round-robin, naïve delay-aware, and single-path on the same heterogeneous topology; present the comparison table.
+5. Compare RTX-CL vs. RTX-CWND under mixed loss conditions; present transfer time difference.
+6. Run repeated benchmarks under `tc`/`netem`-controlled delay, loss, and rate limits; export results.
+7. Attempt an unauthorised route change and replay an old heartbeat; show rejection and audit records.
+8. Stop PostgreSQL during a run and demonstrate the documented forwarding behaviour.
+
+---
+
+## 11. Initial Performance Targets
+
+Provisional targets for a local prototype. Record the environment and revise after baseline measurements.
+
+| Metric | Initial target / rule | Measurement |
+|---|---|---|
+| Failure detection | ≤ 3 s under local conditions | Fault time to `FAILED` transition |
+| Recovery time | Report median and p95; set numeric goal after baseline | Fault time to first verified post-failure delivery |
+| Route flap count | Hysteresis reduces flap count vs. naïve threshold by ≥ 50% at ratio ≥ 2.0 | `state_transition` events per link per run |
+| Hysteresis trade-off | Documented Pareto frontier across ratios | Sweep output |
+| Delivery/loss | Exact sent/received counts per run | Message IDs and receiver counters |
+| Transfer integrity | SHA-256 matches on successful transfer | Source and receiver hashes |
+| DB-DSP vs. round-robin | DB-DSP out-of-order count ≤ 50% of round-robin at 5:1 delay heterogeneity | Receiver reorder buffer statistics |
+| RTX-CL vs. RTX-CWND | RTX-CL achieves ≤ 90% of RTX-CWND transfer time under 5% loss | Transfer time comparison |
+| Emulation accuracy | Measured delay/loss within 10% of configured `tc`/`netem` values | Emulation validation tests |
+| Repeatability | ≥ 5 repetitions in final evaluation | Versioned scenario and raw results |
+| Authorisation | All negative authorisation tests rejected | Automated integration tests |
+| Replay protection | Stale/repeated control messages rejected | Security harness |
+| DB outage | Forwarding continues on in-memory state; degraded logging visible | Controlled DB disconnect |
+
+---
+
+## 12. Roadmap
+
+| Phase | Deliverable | Exit criterion |
+|---|---|---|
+| 0. Foundation | Repo, config, node processes, logs, PostgreSQL schema, Docker Compose, basic tests | Multiple local nodes exchange identified messages; DB reachable |
+| 1. Emulation + benchmark first | `tc`/`netem` integration, workload generator, CSV export | Feature D runs independently; emulation validated |
+| 2. Recovery core | Heartbeats, hysteresis state machine, alternate paths, loop protection | Node-kill recovery tests pass; flap count measured |
+| 3. Recovery evaluation | Hysteresis sweep harness and Pareto frontier | Trade-off curve documented |
+| 4. Transfer core | Chunking, DB-DSP scheduler, RTX-CL retransmission, assembly, SHA-256 | Integrity and interruption tests pass |
+| 5. Transfer evaluation | Scheduler comparison harness (DB-DSP vs. RR/WRR/naïve/single) | Complete comparison table produced |
+| 6. Security | mTLS, API authorisation, replay protection, audit, scans | Negative security tests pass |
+| 7. UI integration | React screens, API, WebSockets, PostgreSQL history | All features remain independently runnable |
+| 8. Evaluation | Repeated benchmark suite, threat model, demo guide | Report uses real measurements and lists limitations |
+
+---
+
+## 13. Risks and Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Scope creep | Three features only. Keep feature-specific MVPs and acceptance tests. |
+| Hysteresis parameters hard to tune | Make configurable; sweep as an experimental variable. |
+| DB-DSP estimates noisy | EWMA smoothing; document estimator and limitations. |
+| RTX-CL depends on accurate `cwnd` estimate | Document estimation method; validate against known loss scenarios. |
+| `tc`/`netem` requires elevated privileges | Document setup; run node processes as non-root where possible; use `sudo` for `tc` configuration only. |
+| Emulation is not real networking | Document clearly; label synthetic conditions; validate emulator against configured values. |
+| `tc`/`netem` kernel version differences | Record kernel version in every run; document any known behaviour changes. |
+| Dashboard hides missing behaviour | Prove CLI/end-to-end flows before building polished UI. |
+| Routing loops or stale state | Versioned routes, hop limits, next-hop validation, loop tests. |
+| Misleading packet-loss metric | Distinguish app-message loss from datagram loss; document TCP retransmission effects. |
+| Multipath performs worse | Compare to single-path baseline; document cases with no improvement. |
+| Security only exists on paper | Automated negative tests and visible rejection events. |
+| PostgreSQL becomes bottleneck | Batch writes; keep DB off the forwarding hot path. |
+| Docker resource overhead | Keep node processes native by default; containerise only infrastructure. |
+| Noisy laptop measurements | Record environment, repeat tests, avoid overclaiming generalisation. |
+
+---
+
+## 14. Release Acceptance Checklist
+
+- All three features can run independently via documented command or dashboard.
+- Each feature has tests, a reproducible scenario, and measurable output.
+- Recovery is claimed only after destination-side delivery is verified.
+- Hysteresis produces a documented trade-off curve between recovery time and route flap count.
+- File transfer verifies SHA-256 and reports bounded failure when retries are exhausted.
+- DB-DSP is compared against round-robin, weighted round-robin, naïve delay-aware, and single-path under heterogeneous paths.
+- RTX-CL is compared against RTX-CWND under mixed loss conditions.
+- Emulation accuracy is validated against configured `tc`/`netem` delay/loss/rate values.
+- Benchmark reports include units, conditions, repetitions, environment, and raw data.
+- PostgreSQL stores all run configuration, metrics, and audit events.
+- Docker Compose can bring up PostgreSQL + API + dashboard reproducibly.
+- Unknown nodes and unauthorised controls are rejected; logs contain no secrets.
+- Security scan findings are reviewed and unresolved high-severity items documented.
+- Controller/database outage behaviour is explicit and tested.
+- Documentation calls this a software overlay prototype and states production limitations.
+- Demo metrics come from the running implementation, not fabricated values.
+- No third-party APIs, cloud services, or telemetry are used.
+- Linux `tc`/`netem` is required and documented as a dependency for Features C and D.
+- No custom encryption, no custom scheduler beyond documented DB-CMT algorithms, no undocumented modifications to published algorithms.
+
+---
+
+## Appendix A — Suggested Repository Structure
+
+```
+netrescue/
+  apps/
+    api/                    # FastAPI endpoints and authorization
+    dashboard/              # React UI
+  netrescue/
+    core/                   # models, config, event types
+    recovery/               # Feature A: heartbeat, hysteresis state machine, route calc
+    transfer/               # Feature C: chunking, DB-DSP scheduler, RTX-CL retransmission
+    emulation/              # Feature D: tc/netem wrapper, config application, verification
+    benchmark/              # Feature D: workload generator, sweeps, comparison harness
+    security/               # mTLS, HMAC, replay protection, audit
+  tests/
+    unit/
+    integration/
+    fault/
+    security/
+    emulation/
+    comparison/             # DB-DSP vs RR/WRR/naive/single; RTX-CL vs RTX-CWND
+  docs/
+    prd.md
+    hysteresis-methodology.md
+    scheduler-methodology.md
+    emulation-methodology.md
+    tc-netem-setup.md
+    limitations.md
+  docker/
+    docker-compose.yml      # PostgreSQL + API + dashboard
+    Dockerfile.api
+    Dockerfile.dashboard
+  scripts/                  # Local run helpers; tc setup scripts
+```
+
+## Appendix B — Methodological Anchors
+
+| Topic | Anchor |
+|---|---|
+| Route hysteresis for ad hoc networks | Maltz thesis (CMU), §7.6.1 |
+| Two-state utilization hysteresis | VNT control literature |
+| DB-CMT (DB-DSP, RTX-CL, DB-FRP) | Verma et al., *J. Network and Systems Management*, 2022 |
+| Delay-based CMT scheduling | CMT-SCTP literature |
+| `tc`/`netem` network emulation | Linux `tc-netem(8)` man page |
+| Emulation in protocol research | TCP BBR / VM research |
+
+---
+
+*End of PRD. This document specifies intended behavior for a software overlay prototype. It does not claim the product is implemented, audited, or production-ready. All numeric targets are provisional and must be validated by implementation and measurement.*
+
+---
+
+# Brutally Honest Rating
+
+**6.5/10 — a well-researched specification that is still a specification.**
+
+Here's the brutal reality:
+
+**What's genuinely good:** The algorithms are research-proven, not invented. Hysteresis for route flap prevention is from real overlay network literature. DB-DSP and RTX-CL are from a peer-reviewed 2022 journal paper with simulation-validated results. Using `tc`/`netem` instead of half-baked Python emulation is the correct engineering decision — it's what actual protocol researchers use. The scope is tight: three features, each with a clear research anchor. No cloud, no third-party APIs, no hand-waving.
+
+**What's still missing:** Everything is theoretical. The PRD describes algorithms from papers, but implementing DB-DSP correctly requires careful estimation of `cwnd`, RTT, and delay — and the paper's simulations assume conditions that a local prototype may not reproduce. The `tc`/`netem` setup has real friction: it needs root or `CAP_NET_ADMIN`, kernel version compatibility, and virtual interface management that is fiddly on single-host setups. The security layer is specified but will be the first thing rushed or skipped. Docker + PostgreSQL + `tc`/`netem` + multiple node processes on one machine is a lot of moving parts for a student project.
+
+**The hard truth:** If this gets fully implemented and produces real measurements — hysteresis trade-off curves, DB-DSP vs. round-robin out-of-order counts, RTX-CL vs. RTX-CWND transfer times — it becomes a genuine 8/10 experimental platform. But as written, it's a 6.5 because the gap between "specified" and "working" is where most projects die. The algorithms are proven; the integration is not.
