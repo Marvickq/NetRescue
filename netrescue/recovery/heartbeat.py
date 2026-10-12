@@ -26,8 +26,6 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 import logging
 import time
@@ -35,6 +33,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Optional
+
+from netrescue.security.hmac_auth import ReplayGuard, sign, verify
 
 log = logging.getLogger(__name__)
 
@@ -54,46 +54,40 @@ def _make_heartbeat(link_id: str, sender_id: str, seq: int, shared_key: bytes) -
     """
     Build a HMAC-authenticated heartbeat message.
 
-    Wire format (JSON):
-      { "link_id": ..., "sender_id": ..., "seq": ..., "ts": ..., "mac": <hex> }
+    Wire format (JSON), identical to every other signed control message::
+
+        { "link_id": ..., "sender_id": ..., "seq": ..., "ts": ..., "mac": <hex> }
+
+    Signing delegates to netrescue.security.hmac_auth so the canonical byte form
+    is defined in exactly one place — a second, subtly different serialisation
+    here would silently break every verification.
     """
-    ts = time.time()
-    body = json.dumps(
-        {"link_id": link_id, "sender_id": sender_id, "seq": seq, "ts": ts},
-        sort_keys=True,
-    ).encode()
-    mac = hmac.new(shared_key, body, hashlib.sha256).hexdigest()
-    payload = body[:-1] + f', "mac": "{mac}"}}'.encode()  # inject mac into JSON
-    return payload
+    payload = sign(
+        {"link_id": link_id, "sender_id": sender_id, "seq": seq, "ts": time.time()},
+        shared_key,
+    )
+    return json.dumps(payload).encode()
 
 
 def _verify_heartbeat(data: bytes, shared_key: bytes, freshness_window_s: float = FRESHNESS_WINDOW_S) -> dict | None:
     """
     Verify and parse a heartbeat.
 
-    Returns the parsed dict if valid, None if HMAC invalid or stale.
+    Returns the parsed dict when the MAC is valid, or None when it is forged.
+    Freshness and replay are enforced separately by the receiver's ReplayGuard,
+    which needs state carried across calls.
     Never logs the shared key.
     """
     try:
         msg = json.loads(data)
-        received_mac = msg.pop("mac")
-        body = json.dumps(msg, sort_keys=True).encode()
-        expected_mac = hmac.new(shared_key, body, hashlib.sha256).hexdigest()
-
-        if not hmac.compare_digest(received_mac, expected_mac):
-            log.warning("[heartbeat] HMAC verification failed — message rejected.")
-            return None
-
-        age = time.time() - msg.get("ts", 0)
-        if age > freshness_window_s or age < -5:
-            log.warning("[heartbeat] Stale message (age=%.1fs) — replay rejected.", age)
-            return None
-
-        msg["mac"] = received_mac  # restore for callers that want it
-        return msg
     except Exception as exc:
         log.debug("[heartbeat] Parse error: %s", exc)
         return None
+
+    if not verify(msg, shared_key):
+        log.warning("[heartbeat] HMAC verification failed — message rejected.")
+        return None
+    return msg
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +235,11 @@ class HeartbeatReceiver:
         self.interval_s = interval_s
         self.window = SlidingWindow(size=window_size)
         self.on_heartbeat = on_heartbeat
-        self._seen_seqs: deque[int] = deque(maxlen=MAX_SEEN_SEQS)
+        # Shared replay/freshness guard — same logic as every other control
+        # message, so a heartbeat cannot bypass the checks other traffic gets.
+        self._guard = ReplayGuard(
+            freshness_window_s=FRESHNESS_WINDOW_S, capacity=MAX_SEEN_SEQS
+        )
         self._last_received_ts: float | None = None
         self._running = False
 
@@ -255,15 +253,16 @@ class HeartbeatReceiver:
     def _on_datagram(self, data: bytes) -> None:
         msg = _verify_heartbeat(data, self.shared_key)
         if msg is None:
-            return  # rejected (HMAC fail or stale)
+            return  # forged MAC
 
-        seq = msg.get("seq", -1)
-        if seq in self._seen_seqs:
-            log.warning("[%s] Replay detected — sequence %d already seen.", self.link_id, seq)
+        accepted, reason = self._guard.check(msg)
+        if not accepted:
+            log.warning("[%s] Heartbeat rejected: %s", self.link_id, reason)
             return
-        self._seen_seqs.append(seq)
+        self._guard.accept(int(msg["seq"]))
+
         self._last_received_ts = time.monotonic()
-        log.debug("[%s] Heartbeat received seq=%d from %s", self.link_id, seq, msg.get("sender_id"))
+        log.debug("[%s] Heartbeat received seq=%s from %s", self.link_id, msg.get("seq"), msg.get("sender_id"))
 
     async def run(self) -> None:
         """Receive datagrams and drive the sliding window at interval_s ticks."""

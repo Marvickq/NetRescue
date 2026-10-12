@@ -102,17 +102,40 @@ export default function FeatureDetailPage() {
                     </span>
                 </div>
                 <div className="relative z-10 px-4 sm:px-6 md:px-8 pb-12 pt-20">
-                    <h1 className="font-light leading-[0.95] tracking-[-0.03em]" style={{ fontSize: 'clamp(36px, 7vw, 72px)' }}>
-                        <ScrambleIn text={feature.title} delay={200} />
-                    </h1>
-                    <motion.p
-                        className="text-white/50 text-[15px] sm:text-[17px] max-w-xl mt-4"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.7 }}
-                    >
-                        {feature.heroSub}
-                    </motion.p>
+                    <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <h1 className="font-light leading-[0.95] tracking-[-0.03em]" style={{ fontSize: 'clamp(36px, 7vw, 72px)' }}>
+                                <ScrambleIn text={feature.title} delay={200} />
+                            </h1>
+                            <motion.p
+                                className="text-white/50 text-[15px] sm:text-[17px] max-w-xl mt-4"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3, duration: 0.7 }}
+                            >
+                                {feature.heroSub}
+                            </motion.p>
+                        </div>
+                        {/* Features with something to build or try. Each opens its own playground. */}
+                        {feature.id === 'feature-a' && (
+                            <Link
+                                to="/features/hysteresis/playground"
+                                className="shrink-0 h-12 px-6 bg-white text-black rounded-full inline-flex items-center gap-2 text-[14px] font-medium self-start md:self-end hover:bg-white/90 transition-colors"
+                            >
+                                Build &amp; Test Network
+                                <span aria-hidden="true">→</span>
+                            </Link>
+                        )}
+                        {feature.id === 'feature-c' && (
+                            <Link
+                                to="/features/multipath/playground"
+                                className="shrink-0 h-12 px-6 bg-white text-black rounded-full inline-flex items-center gap-2 text-[14px] font-medium self-start md:self-end hover:bg-white/90 transition-colors"
+                            >
+                                Try Interactive Demo
+                                <span aria-hidden="true">→</span>
+                            </Link>
+                        )}
+                    </div>
                 </div>
             </section>
 

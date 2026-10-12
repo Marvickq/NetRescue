@@ -93,10 +93,18 @@ class EventType(str, Enum):
 
 @dataclass
 class NetRescueEvent:
-    """Base class for all in-process events."""
+    """
+    Base class for all in-process events.
 
-    event_type: EventType
-    component: Component
+    `event_type` and `component` are defaulted rather than required because
+    every concrete subclass assigns its own pair in `__post_init__`. Declaring
+    them as required dataclass fields would turn them into positional
+    constructor arguments that callers must pass, only for the value to be
+    immediately overwritten.
+    """
+
+    event_type: EventType | None = None
+    component: Component | None = None
     severity: Severity = Severity.INFO
     timestamp: datetime = field(default_factory=datetime.utcnow)
     run_id: str | None = None

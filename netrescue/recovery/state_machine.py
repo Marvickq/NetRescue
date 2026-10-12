@@ -153,12 +153,18 @@ class HysteresisStateMachine:
         old_state = self._state
         self._state = new_state
 
-        # Track route flaps (oscillation between FAILED and HEALTHY)
-        route_flap = (
-            old_state == LinkState.FAILED and new_state == LinkState.HEALTHY
-        ) or (
-            old_state == LinkState.HEALTHY and new_state == LinkState.FAILED
-        )
+        # Route flap accounting (PRD §4.3, §11).
+        #
+        # A "route flap" is a change in the *usable* forwarding path. Entering or
+        # leaving FAILED changes it; entering SUSPECT does not, because the link is
+        # still forwarding. Counting both directions keeps the metric symmetric and
+        # directly comparable with the naive two-state detector in naive.py, which
+        # flaps on every HEALTHY<->FAILED toggle.
+        #
+        # Note: HEALTHY -> FAILED is unreachable by design (no direct transitions,
+        # PRD §4.3) and is deliberately not special-cased here.
+        route_flap = LinkState.FAILED in (old_state, new_state)
+
         if route_flap:
             self._route_flap_count += 1
 

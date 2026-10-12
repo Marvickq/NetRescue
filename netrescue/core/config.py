@@ -27,10 +27,30 @@ class Settings(BaseSettings):
         description="SQLAlchemy async-compatible PostgreSQL URL",
     )
 
+    db_connect_timeout_s: int = Field(
+        default=5,
+        ge=1,
+        le=120,
+        description=(
+            "Seconds to wait for a database connection before failing. Keeps a "
+            "down database from stalling callers (PRD §2.2 rule 3)."
+        ),
+    )
+
     # --- API ---
     api_bind_host: str = Field(default="127.0.0.1", description="Host to bind FastAPI to (loopback by default)")
     api_bind_port: int = Field(default=8000, description="Port for the FastAPI server")
     api_secret_key: str = Field(default="change-me", description="Secret key for session / token signing")
+
+    cors_origins: str = Field(
+        default="",
+        description=(
+            "Comma-separated browser origins allowed to call this API. Empty means "
+            "'any loopback origin', which covers every local Vite dev port without "
+            "having to enumerate them. Set this explicitly before exposing the API "
+            "beyond localhost."
+        ),
+    )
 
     # --- TLS / mTLS ---
     tls_ca_cert: str = Field(default="certs/ca.crt", description="Path to CA certificate")

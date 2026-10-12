@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+from netrescue.emulation.platform import EmulationUnavailable, require_emulation
+
 log = logging.getLogger(__name__)
 
 
@@ -118,12 +120,32 @@ class TcNetemConfig:
 
 
 def _run_tc(*args: str) -> str:
-    """Run a tc subcommand, returning stdout. Raises on failure."""
+    """
+    Run a tc subcommand, returning stdout. Raises on failure.
+
+    Requires CAP_NET_ADMIN (or root). Emulation lives in the Linux kernel, so
+    this raises EmulationUnavailable with an actionable hint on non-Linux hosts
+    instead of an opaque FileNotFoundError from subprocess.
+    """
+    require_emulation()
+
     cmd = ["tc"] + list(args)
     log.debug("Running: %s", " ".join(cmd))
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=10
-    )
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=10
+        )
+    except FileNotFoundError as exc:  # tc vanished between probe and call
+        raise EmulationUnavailable(
+            f"`tc` could not be executed: {exc}",
+            "Install iproute2, or run on Linux/WSL2.",
+        ) from exc
+    except PermissionError as exc:
+        raise EmulationUnavailable(
+            f"permission denied running `{' '.join(cmd)}`: {exc}",
+            "Grant CAP_NET_ADMIN, or run the tc step under sudo only.",
+        ) from exc
+
     if result.returncode != 0:
         raise RuntimeError(
             f"tc failed (exit {result.returncode}): {result.stderr.strip()}"

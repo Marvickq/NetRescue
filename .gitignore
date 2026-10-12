@@ -25,6 +25,11 @@ certs/*.p12
 node_modules/
 apps/dashboard/dist/
 apps/dashboard/.vite/
+apps/console/dist/
+apps/console/.vite/
+
+# TypeScript incremental build info
+*.tsbuildinfo
 
 # IDE
 .vscode/
