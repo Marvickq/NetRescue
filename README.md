@@ -1,258 +1,349 @@
-# NetRescue — Network Diagnostics, Failure Recovery & Reliable Transfer
+ <p align="center">
+  <img src="apps/dashboard/public/netrescue-symbol.png" alt="NetRescue" width="120" />
+</p>
 
-**NetRescue** is a networking project that combines network diagnostics, hysteresis-based failure detection, and chunk-based multipath file-transfer experiments in a web dashboard.
+<h1 align="center">🌌 NetRescue</h1>
 
-The system uses real Windows network diagnostic commands alongside controlled application-level simulations to investigate network behavior, compare recovery strategies, and evaluate transfer integrity.
+<p align="center">
+  <strong>Hysteresis-Based Recovery, Multipath File Transfer & Network Diagnostics</strong>
+</p>
 
-> **Implementation boundary:** Real network measurements, application-level simulations, and automated software tests are reported separately. NetRescue does not use Linux `tc/netem` in its Windows-native diagnostics workflow, and its logical multipath simulation does not represent independent physical network links.
+<p align="center">
+  <em>Detect unstable links · Transfer files across logical paths · Measure and analyze network behavior</em>
+</p>
 
-## 1. Problem Statement
+<p align="center">
+  <a href="#-architecture"><img src="https://img.shields.io/badge/Network_Recovery-Hysteresis-9F1239?style=for-the-badge" alt="Network Recovery" /></a>
+  <a href="#-features"><img src="https://img.shields.io/badge/Transfer-Multipath-7C3AED?style=for-the-badge" alt="Multipath Transfer" /></a>
+  <a href="#-network-diagnostics"><img src="https://img.shields.io/badge/Diagnostics-Windows_Compatible-0891B2?style=for-the-badge" alt="Windows Diagnostics" /></a>
+</p>
 
-Network failures, fluctuating latency, packet loss, and unstable recovery decisions can interrupt communication and file transfers. Diagnosing these conditions and comparing possible responses requires more than a static network dashboard.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Testing-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest" />
+  <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License — verify repository license" />
+</p>
 
-NetRescue provides a common interface for inspecting real network conditions, experimenting with failure-detection parameters, evaluating logical transfer schedulers, and exporting results for further analysis.
+---
 
-The project focuses on observable behavior and reproducible experiments rather than claiming to eliminate all network failures.
+## 🔥 The Problem We're Solving
 
-## 2. Objectives
+Network failures are not always clean or permanent. A forwarding process can stop responding, link quality can fluctuate, and file chunks travelling through paths with different delays can arrive out of order.
 
-- Diagnose network connectivity using Windows-native tools.
-- Measure ICMP round-trip time and packet loss.
-- Inspect DNS resolution, route traces, and network adapters.
-- Investigate failure detection using heartbeat monitoring and hysteresis.
-- Compare chunk-scheduling and retransmission strategies in a logical multipath transfer model.
-- Verify reconstructed file integrity using SHA-256.
-- Run deterministic, application-level fault simulations.
-- Export benchmark results in JSON and CSV formats.
-- Provide a reproducible, browser-based demonstration.
+Simple failure thresholds can cause **route flapping**. A single transfer path can become a bottleneck, while network diagnostics alone may not explain how different failure conditions affect an application's behavior.
 
-## 3. Features
+**NetRescue** brings together three networking experiments in one dashboard:
 
-### Feature 1 — Hysteresis-Based Failure Detection
+- 🛡️ **Hysteresis Recovery:** models health-state transitions and recovery behavior to reduce unnecessary switching.
+- 📦 **Multipath Transfer:** divides files into chunks, schedules them across logical paths, reassembles the data and checks integrity.
+- 🔬 **Network Diagnostics:** collects available Windows network measurements and compares controlled, deterministic simulations.
 
-**Purpose:** Reduce unstable failure-state transitions caused by temporary changes in network responsiveness.
 
-**How it works:**
-- Monitors heartbeat-related signals.
-- Uses a state machine to represent network or link status.
-- Applies configurable failure and recovery thresholds.
-- Supports an EWMA option where enabled by the implementation.
-- Provides parameter sweeps to compare detection and recovery behavior.
+---
 
-**Why hysteresis matters:** If failure and recovery decisions use poorly separated conditions, a connection can repeatedly switch between healthy and failed states. Hysteresis introduces different conditions for entering and leaving a failure state.
-
-**Evaluation:** Compare the configured thresholds, state transitions, number of flaps, and recovery time under the same test conditions.
-
-**Scope:** Reported recovery times must be identified as simulated or measured according to the experiment that produced them. A state-machine demonstration alone does not prove physical network failover.
-
-### Feature 2 — Multipath Reliable File Transfer
-
-**Purpose:** Experiment with splitting a file into chunks, scheduling those chunks across logical paths, reconstructing the original file, and checking integrity.
-
-**Implemented capabilities reported:**
-- File chunking and offset-based reconstruction.
-- Multiple logical path profiles.
-- Scheduling strategies including DB-DSP, Round Robin (RR), Weighted Round Robin (WRR), Single-Path, and Naïve Delay-Aware, where supported by the selected experiment.
-- Retransmission policies, including RTX-CL and RTX-CWND.
-- Transfer metrics and completion tracking.
-- SHA-256 integrity verification.
-
-**Evaluation:** Record chunk completion, out-of-order arrivals, retransmissions, completion time, and the integrity-check result.
-
-**Important limitation:** The current implementation models logical paths using application-level scheduling and simulated delays/loss. It does not establish that traffic is transmitted over independent physical links. A scheduler that performs best in one experiment is not guaranteed to perform best under every workload.
-
-### Feature 3 — Windows-Native Network Diagnostics & Benchmarking Lab
-
-**Purpose:** Diagnose real network conditions and provide a repeatable environment for comparing network experiments without requiring Linux `tc/netem`.
-
-**Components:**
-- Live Network Status and DNS Resolution.
-- Latency and Packet-Loss Measurement.
-- Route Trace.
-- Network Adapter Inspection.
-- Benchmark History.
-- Hysteresis Sweep.
-- Scheduler Comparison.
-- JSON and CSV Report Export.
-
-**Live diagnostics:** Uses Windows-native commands for network inspection, including ping, route tracing, DNS queries, and network-adapter/gateway information.
-
-**Application-level experiments:** Uses seeded simulations for reproducible fault scenarios and compares supported hysteresis and transfer-scheduling configurations.
-
-**Security and reliability:** External commands are invoked using argument arrays with `shell=False`, validated inputs, and asynchronous thread offloading for blocking subprocess calls. API routes apply role-based authorization and map validation, unsupported-operation, timeout, and command failures to appropriate HTTP errors.
-
-**Important distinction:** ICMP round-trip time is not application-response latency. ICMP may be filtered or rate-limited, and a failed ping does not by itself prove that a network link is down. Simulated results are not presented as real network measurements.
-
-## 4. System Architecture
+## ⚡ One-Glance Overview
 
 ```text
-                         User
-                          |
-                          v
-                React + TypeScript UI
-                          |
-                      HTTP / JSON
-                          |
-                          v
-                    FastAPI Backend
-                          |
-          +---------------+---------------+
-          |               |               |
-          v               v               v
-    Diagnostics       Recovery         Transfer
-    & Benchmark      State Machine     & Scheduling
-          |               |               |
-          v               v               v
-    Windows tools    Heartbeat and     Chunking,
-    and real probes  hysteresis logic  reassembly,
-          |               |            integrity
-          v               v               v
-    Real measurement  Experiment data   Transfer results
-          |               |               |
-          +---------------+---------------+
-                          |
-                          v
-                History and Reports
-                  JSON / CSV export
+┌──────────────────────────────────────────────────────────────────────┐
+│                              NETRESCUE                               │
+│                                                                      │
+│  🛡️ HYSTERESIS RECOVERY     📦 MULTIPATH TRANSFER   🔬 DIAGNOSTICS  │
+│  ─────────────────────     ─────────────────────   ──────────────  │
+│  Heartbeat monitoring      File chunking           Windows ping     │
+│  HEALTHY / SUSPECT /       Logical path scheduling  Route tracing    │
+│  FAILED states             Retransmission policies  DNS resolution   │
+│  Dead-band experiments     Ordered reassembly       Adapter status   │
+│  Recovery measurements     SHA-256 verification     IP configuration │
+│                                                                      │
+│  📊 EXPERIMENTS              📈 RESULTS               📄 REPORTS       │
+│  ──────────────              ─────────               ─────────       │
+│  Hysteresis sweeps           Latency and timing      CSV / JSON*      │
+│  Scheduler comparisons       Completion and loss     Config hashes*  │
+│  Seeded fault scenarios      Recovery and stability  Run metadata*   │
+│                                                                      │
+│   
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-The diagram represents the logical software architecture. It does not imply that every component communicates over separate physical network paths.
+---
 
-## 5. Technology Stack
+## 🏗️ Architecture
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Frontend-React_%2B_TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React and TypeScript" />
+  <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Experiments-Real_%2B_Simulated-7C3AED?style=for-the-badge" alt="Real and simulated experiments" />
+</p>
+
+```text
+                        ┌─────────────────────┐
+                        │  React Dashboard    │
+                        │  TypeScript + Vite  │
+                        └──────────┬──────────┘
+                                   │ HTTP / JSON
+                        ┌──────────▼──────────┐
+                        │    FastAPI Server   │
+                        │  REST API + Routers │
+                        └──────────┬──────────┘
+                                   │
+               ┌───────────────────┼───────────────────┐
+               │                   │                   │
+      ┌────────▼────────┐ ┌────────▼────────┐ ┌────────▼────────┐
+      │ Hysteresis      │ │ Multipath       │ │ Network         │
+      │ Recovery        │ │ Transfer        │ │ Diagnostics     │
+      ├─────────────────┤ ├─────────────────┤ ├─────────────────┤
+      │ Heartbeat state │ │ Chunk scheduler │ │ Ping / tracert  │
+      │ State changes   │ │ Retransmission  │ │ DNS / adapters  │
+      │ Recovery sweeps │ │ Reassembly      │ │ IP / route data │
+      └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+               │                   │                   │
+               └───────────────────┼───────────────────┘
+                                   │
+                        ┌──────────▼──────────┐
+                        │ Metrics and Results │
+                        │ Charts / Run History│
+                        │ Reports, if enabled │
+                        └─────────────────────┘
+```
+
+### 🧰 Technology Map
 
 | Technology | Purpose |
-|---|---|
-| Python | Backend logic, diagnostics, simulation, and benchmarking |
-| FastAPI | HTTP API, typed request/response schemas, and API documentation |
-| Pydantic | Input validation and schema enforcement |
-| React | Interactive dashboard |
-| TypeScript | Frontend type checking and API data contracts |
-| Vite | Frontend development server and production build |
-| asyncio and subprocess | Asynchronous orchestration of supported diagnostic commands |
-| SHA-256 | Checking reconstructed-file integrity |
-| pytest | Automated backend and regression testing |
-| SQLite/PostgreSQL or other configured database | Persistence, where enabled by the selected configuration |
-| Docker | Optional containerized deployment, where configured |
+|:--|:--|
+| **Python** | Implements networking logic, state transitions and experiment models. |
+| **FastAPI** | Exposes backend operations through HTTP endpoints. |
+| **React + TypeScript** | Builds the interactive networking dashboard. |
+| **Vite** | Runs and builds the frontend. |
+| **Asyncio** | Supports asynchronous application-level transfer and timing behavior. |
+| **SHA-256** | Verifies that reconstructed file contents match the expected digest. |
+| **pytest** | Tests backend behavior and regression cases. |
+| **Windows networking tools** | Provide real measurements using tools such as `ping`, `tracert`, DNS resolution and PowerShell networking commands. |
 
-Use the actual dependency and configuration files as the source of truth for database and deployment details.
+---
 
-## 6. Working Methodology
+## 🛡️ Feature 1 — Hysteresis-Based Recovery
 
-### Real diagnostic workflow
+<p align="center">
+  <img src="apps/dashboard/public/hysteresis-recovery.png" alt="NetRescue hysteresis recovery illustration" width="85%" />
+</p>
 
-1. Select a supported diagnostic operation and target.
-2. Validate the request.
-3. Execute the appropriate Windows network command.
-4. Parse the command output and collect supported measurements.
-5. Return a typed API response.
-6. Display the results in the dashboard and store them in bounded history where supported.
-7. Export the available report.
+### The problem
 
-### Simulated experiment workflow
+When network quality fluctuates around one threshold, a naïve detector may alternate repeatedly between healthy and failed states. This can cause unnecessary route changes and unstable recovery behavior.
 
-1. Select a scenario and configuration.
-2. Set a seed for reproducible simulation.
-3. Execute the simulation or parameter sweep.
-4. Collect state transitions, timing, and comparison metrics.
-5. Inspect results in the dashboard.
-6. Export the experiment results.
+### How NetRescue approaches it
 
-The two workflows must remain clearly distinguishable in the UI and reports.
+- Tracks health using a state machine with `HEALTHY`, `SUSPECT` and `FAILED` states.
+- Uses configurable heartbeat and failure/recovery parameters.
+- Uses a dead band between failure and recovery conditions to reduce oscillation.
+- Supports hysteresis-ratio experiments to compare stability and recovery behavior.
+- Can record transition counts and recovery timing where supported by the implementation.
 
-## 7. Testing and Verification
+### State transition model
 
-The following verification results were reported for the project:
+```text
+                Missed heartbeats
+       ┌─────────────────────────────────┐
+       │                                 ▼
+┌─────────────┐                   ┌─────────────┐
+│   HEALTHY   │                   │   SUSPECT   │
+└─────────────┘                   └──────┬──────┘
+       ▲                                  │
+       │                                  │ Failure threshold reached
+       │                                  ▼
+       │                           ┌─────────────┐
+       │                           │   FAILED    │
+       │                           └──────┬──────┘
+       │                                  │
+       └──────────────────────────────────┘
+           Successful heartbeats reach
+           the configured recovery threshold
+```
 
-| Verification | Reported result |
-|---|---|
-| Full backend test suite | 402 passed |
-| Feature 3 tests | Run using `pytest tests/test_diagnostics.py -v` |
-| Frontend production build | TypeScript and Vite build completed successfully |
-| Live API integration | Diagnostics run completed with `data_kind=real` |
-| Deterministic simulation | Repeated runs with identical seeds produced matching fault behavior |
-| Hysteresis sweep | Ratios from 1.0 to 3.0 observed in the reported experiment |
-| Scheduler comparison | DB-DSP and RR results produced with integrity checking |
-| Input validation | Injection-oriented invalid input rejected with HTTP 422 |
-| Authorization | Read-only role denied a write operation with HTTP 403 |
-| History and reports | History, export, and comparison paths exercised |
+### Why it matters
 
-These are reported verification results, not a substitute for publishing reproducible logs or a test report. Re-run the tests against the committed revision before using these figures in a formal submission.
+A failure detector should not treat every temporary quality drop as a permanent failure. Hysteresis gives the system separate conditions for entering and leaving a failure state.
 
-### Recommended test matrix
+**Important boundary:** State-machine recovery is not proof of a production overlay routing protocol. End-to-end forwarding recovery, process termination tests, route versioning and loop prevention should only be claimed when those behaviors have been implemented and tested.
 
-| Test case | Expected observation |
-|---|---|
-| Valid DNS query | Domain resolves when the configured resolver and network permit it |
-| Unreachable or blocked ICMP target | Failure or missing replies are reported without automatically declaring the entire link down |
-| Valid route trace | Route information is returned when supported |
-| Invalid diagnostic input | Request is rejected with a validation error |
-| Unsupported Windows operation | Clear unsupported-operation response |
-| Command timeout | Timeout is reported instead of hanging indefinitely |
-| Identical simulation seeds | Equivalent deterministic fault behavior |
-| Different scheduling strategies | Individual results and metrics are recorded for comparison |
-| File reconstruction | Integrity succeeds when the reconstructed content matches |
-| Unauthorized write request | Request is rejected |
-| Report export | JSON/CSV output matches the selected experiment data |
+---
 
-## 8. Performance Results
+## 📦 Feature 2 — Multipath Reliable File Transfer
 
-Performance results must include the target, configuration, repetitions, units, and whether they came from a real measurement or simulation.
+<p align="center">
+  <img src="apps/dashboard/public/multipath-transfer.png" alt="NetRescue multipath transfer illustration" width="85%" />
+</p>
 
-### Example: Reported ICMP measurement
+### The problem
 
-| Metric | Example result |
-|---|---:|
-| Target | `10.21.0.1` |
-| Probes sent | 4 |
-| Replies received | 4 |
-| Packet loss | 0% |
-| Minimum RTT | 1 ms |
-| Average RTT | 10.50 ms |
-| Maximum RTT | 35 ms |
-| RTT standard deviation | 14.19 ms |
+Different network paths can have different delays and bandwidths. File chunks can arrive out of order, and missing chunks may need retransmission before the original file can be reconstructed.
 
-This is a small sample from one reported run, not a general performance guarantee. It shows no loss among four probes, but the observed response times varied. Repeat the measurement with a larger sample before drawing stronger conclusions.
+### How NetRescue approaches it
 
-### Example: Reported logical transfer experiment
+- Splits a file into smaller chunks.
+- Assigns chunks to **logical paths** with declared delay, bandwidth and other supported conditions.
+- Compares scheduling approaches such as DB-DSP, Round Robin, Weighted Round Robin and Single-Path.
+- Supports the implemented retransmission policies, including RTX-CL and RTX-CWND.
+- Reassembles received chunks using their offsets.
+- Uses SHA-256 to compare the reconstructed file against the expected content.
 
-A reported run transferred a 76,702-byte image in 19 chunks, with 19/19 chunks completed, 14 out-of-order arrivals, zero retransmissions, and a matching SHA-256 digest.
+### Transfer flow
 
-This result demonstrates successful reconstruction and integrity checking for that particular run. It does not establish a universal speed advantage over single-path transfer.
+```text
+┌───────────────────┐
+│   Source File     │
+└─────────┬─────────┘
+          │
+          ▼
+┌───────────────────┐
+│  Split into       │
+│  Numbered Chunks  │
+└─────────┬─────────┘
+          │
+          ▼
+┌───────────────────┐
+│  Path Scheduler   │
+└─────┬─────┬───────┘
+      │     │
+      ▼     ▼
+   Path A  Path B  ... Path C
+      │     │           │
+      └─────┼───────────┘
+            ▼
+┌───────────────────┐
+│ Reorder / Recover │
+│ Missing Chunks    │
+└─────────┬─────────┘
+          ▼
+┌───────────────────┐
+│ Reassemble File   │
+│ Verify SHA-256    │
+└───────────────────┘
+```
 
-### Performance reporting rules
+### Metrics worth reporting
 
-- Report real measurements separately from simulated values.
-- State whether latency means ICMP RTT, simulated path delay, or transfer completion time.
-- Include all relevant configuration parameters.
-- Do not combine unrelated metrics into an undocumented overall score.
-- Report failed runs and trade-offs, not only the best result.
+| Metric | What it tells us |
+|:--|:--|
+| Completion status | Whether the transfer completed. |
+| Transfer duration | How long the application-level experiment took. |
+| Out-of-order chunks | How often chunks arrived in a different order from their original sequence. |
+| Retransmissions | How many chunks were retransmitted. |
+| Integrity result | Whether the reconstructed file matches the expected SHA-256 digest. |
+| Per-path utilization | How chunks were distributed among paths, if measured by the current implementation. |
 
-## 9. Installation and Execution on Windows
+### Why it matters
+
+This feature demonstrates how chunk scheduling, retransmission, reassembly and integrity verification work together in a reliable file-transfer design.
+
+**Important boundary:** The logical paths in the simulator are not necessarily separate physical interfaces or independently routed network connections. Results depend on the configured conditions. Multipath scheduling is not guaranteed to outperform Single-Path for every workload.
+
+---
+
+## 🔬 Feature 3 — Windows Network Diagnostics & Benchmarking
+
+<p align="center">
+  <img src="apps/dashboard/public/network-diagnostics.png" alt="NetRescue Windows network diagnostics illustration" width="85%" />
+</p>
+
+### The problem
+
+Network experiments often require Linux-specific tools or privileged network configuration. On a Windows development machine, kernel-level `tc/netem` emulation is not available natively.
+
+### What this feature provides
+
+- Reads the available network adapter and IP configuration.
+- Checks the configured default gateway and routing information.
+- Measures real ICMP round-trip statistics using supported probes.
+- Resolves hostnames through the operating system resolver.
+- Runs bounded route tracing using Windows `tracert`.
+- Compares controlled, seeded application-level fault scenarios.
+- Runs hysteresis sweeps and scheduler comparisons under declared conditions where supported.
+- Presents run history and exports only where the corresponding functionality is implemented.
+
+### Provenance labels
+
+| Label | Meaning |
+|:--|:--|
+| **Real** | Collected from the operating system or a live network probe. |
+| **Controlled** | Compared under declared, repeatable experiment settings. |
+| **Simulated** | Generated by the application-level fault model rather than measured from the physical network. |
+| **Seeded** | Uses a configured random seed to make supported simulated experiments repeatable. |
+| **Unavailable** | A capability is not provided in the current environment. |
+
+### Why it matters
+
+The feature lets developers collect basic network evidence and compare application behavior without pretending that a simulated network is the same as a real one.
+
+**Important boundary:** It does not silently change routes, firewall rules, adapter configuration or kernel networking settings. ICMP probes may be filtered or rate-limited. A missing reply does not automatically prove that a host or route has failed.
+
+---
+
+## 📊 Experiments and Performance Evaluation
+
+NetRescue is designed to compare network behavior under stated conditions rather than rely on a single overall score.
+
+| Experiment | Variables | Results to examine |
+|:--|:--|:--|
+| Hysteresis sweep | Hysteresis ratio, heartbeat timing and configured failure conditions | State transitions, route flaps and recovery timing, where recorded |
+| Scheduler comparison | Scheduler, retransmission policy and logical path conditions | Completion, duration, ordering and retransmission counts |
+| Network diagnostics | Probe target, repetitions and probe count | Round-trip measurements, loss observations and route-trace results |
+| Seeded fault scenarios | Fault type, seed and scenario settings | Repeatability and application behavior under the same declared scenario |
+
+### Experimental discipline
+
+- Keep real measurements separate from simulated results.
+- State the configuration used for each comparison.
+- Repeat experiments where practical.
+- Report units and measurement limitations.
+- Avoid claiming improvement unless the recorded results support it.
+- Do not describe a seeded simulation as a real packet-level network experiment.
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Windows.
-- Python compatible with the dependencies in `requirements.txt`.
+- Python 3.11 or a compatible version supported by the project.
 - Node.js and npm.
-- Git, if cloning the repository.
-- Access to the network targets you intend to diagnose.
+- Git.
+- Windows PowerShell.
+- Project dependencies installed from the repository's configuration files.
 
-### Backend
+### 1️⃣ Clone the repository
 
-From the repository root:
+```powershell
+git clone <YOUR_NETRESCUE_GITHUB_URL>
+cd NetRescue
+```
+
+If the repository is already on your computer, open PowerShell in its root directory instead.
+
+### 2️⃣ Start the backend
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
+```
+
+If the virtual environment does not exist yet, create it and install the project's actual dependencies first:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt -r requirements-dev.txt
-uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-If the virtual environment already exists, activate it rather than recreating it.
+Use the repository's documented dependency installation command or requirements file before starting the server.
 
-### Frontend
+### 3️⃣ Start the frontend
 
-Open a second terminal:
+Open a second PowerShell terminal:
 
 ```powershell
 cd apps/dashboard
@@ -260,60 +351,147 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. The default development URL is usually `http://localhost:5173`.
+Open the local URL printed by Vite. The port may differ if the default port is already occupied.
 
-Navigate to:
+### 4️⃣ Verify the backend
 
-`http://localhost:5173/features/feature-d`
+Open these URLs if the server is running on port 8000:
 
-Click **Run Diagnostics** to launch the Feature 3 workflow.
+- API documentation: `http://127.0.0.1:8000/docs`
+- API root: `http://127.0.0.1:8000/`
 
-### Tests
+The root endpoint may not provide a response unless it is implemented in the current backend.
 
-From the repository root:
+### 5️⃣ Run tests
+
+From the repository root, activate the virtual environment and run:
 
 ```powershell
-pytest tests/test_diagnostics.py -v
-pytest
+python -m pytest
 ```
 
-The second command runs the full test suite. Use the same committed revision and environment when reproducing reported test totals.
+Use the project's documented frontend build or test commands to validate the dashboard. A successful build alone does not prove that every feature works correctly in a browser.
 
-## 10. API and Message Format
+---
 
-The backend exposes HTTP endpoints under `/api/diagnostics/`. The exact route list and schemas are defined by the committed router and can be inspected through FastAPI's API documentation.
+## 📁 Project Structure
 
-Local API documentation:
+```text
+NetRescue/
+├── apps/
+│   ├── api/
+│   │   ├── main.py
+│   │   ├── deps.py
+│   │   └── routers/
+│   │       ├── nodes.py
+│   │       ├── transfers.py
+│   │       └── xfer.py
+│   │
+│   └── dashboard/
+│       └── src/
+│           ├── App.tsx
+│           ├── pages/
+│           └── multipath/
+│
+├── netrescue/
+│   ├── core/
+│   ├── recovery/
+│   ├── transfer/
+│   │   ├── scheduler.py
+│   │   └── session.py
+│   ├── benchmark/
+│   └── emulation/
+│
+├── tests/
+├── docker/
+├── .gitignore
+└── README.md
+```
 
-`http://127.0.0.1:8000/docs`
+*This is a high-level guide, not a guaranteed exhaustive file listing. Update it if your repository structure differs.*
 
-The API uses JSON request and response bodies where applicable. Requests are validated, and errors are mapped to HTTP status codes.
+---
 
-| HTTP status | Meaning in the diagnostics API |
-|---|---|
-| 200 | Operation completed, including a valid ping result with zero replies |
-| 403 | Authenticated role is not permitted to perform the operation |
-| 422 | Invalid request or rejected input |
-| 502 | Underlying diagnostic command failed |
-| 503 | Requested capability is unsupported |
-| 504 | Diagnostic command timed out |
+## 🔌 API Reference
 
-Exact behavior depends on the endpoint and response schema. Consult the API definitions rather than assuming every endpoint returns the same fields.
+The FastAPI application exposes REST endpoints for the functionality registered in the current backend.
 
-## 11. Limitations and Scope
+| Area | Purpose |
+|:--|:--|
+| Nodes | Node-related operations supported by the API. |
+| Transfers | Transfer operations supported by the registered transfer router. |
+| Multipath transfer | Chunk-transfer experiments and results, where the Xfer router is registered. |
+| Diagnostics | Windows network probes and controlled experiments, if registered in the current version. |
+| Recovery | Hysteresis and recovery experiments, if registered in the current version. |
 
-- The diagnostics lab uses Windows-native commands; it does not use Linux `tc/netem` to emulate kernel-level network conditions.
-- The legacy Linux emulation package is retained for compatibility and is reported unavailable when its capabilities cannot be used.
-- ICMP latency is not application-level latency.
-- A failed ping alone does not prove that the link is down.
-- Sub-millisecond measurements recorded as `0.0` are lower bounds caused by measurement resolution, not proof of zero latency.
+**Interactive API documentation:** `http://127.0.0.1:8000/docs`
+
+Verify the actual HTTP methods, paths, request models and response schemas in the generated API documentation before publishing a detailed endpoint table.
+
+---
+
+## 🧪 Testing and Validation
+
+NetRescue should be evaluated with both automated tests and live demonstrations.
+
+- **Unit tests:** Verify state transitions, scheduler decisions, chunk offsets and other isolated logic.
+- **API tests:** Check endpoint behavior, validation and error responses.
+- **Failure scenarios:** Exercise missed heartbeats, recovery and unavailable-route conditions where implemented.
+- **Transfer checks:** Confirm reconstruction and SHA-256 integrity.
+- **Diagnostics checks:** Compare the displayed results with the Windows tools that produced them.
+- **Frontend checks:** Verify loading, success, empty and error states in the browser.
 
 
-## 12. References
 
-Add the canonical documentation and standards that directly support the implementation:
+---
 
-- Python documentation: https://docs.python.org/3/
-- FastAPI documentation: https://fastapi.tiangolo.com/
-- React documentation: https://react.dev/
+## 🎯 Key Differentiators
 
+### 🛡️ Stability over simple thresholds
+
+The recovery experiment focuses on the trade-off between detecting failures and avoiding unnecessary state changes.
+
+### 📦 Reliability beyond sending bytes
+
+Chunk offsets, reassembly, retransmission and integrity checks make the transfer experiment more informative than a basic file-copy demonstration.
+
+### 🔬 Honest measurement provenance
+
+Real network probes and simulated fault scenarios are identified separately, helping users interpret the results correctly.
+
+### 🪟 Practical Windows workflow
+
+The diagnostics feature is designed to run without requiring Linux kernel network emulation or silently changing the host's network configuration.
+
+---
+
+## 🗺️ Scope and Limitations
+
+NetRescue is an educational networking project and experimental dashboard. Its capabilities should be described according to the code and tests currently available.
+
+| Capability | How to describe it |
+|:--|:--|
+| Hysteresis | State-machine recovery experiments; do not claim production-grade routing without end-to-end evidence. |
+| Multipath transfer | Application-level scheduling over logical paths unless separate physical paths are actually implemented. |
+| SHA-256 | Content-integrity verification, not encryption or authentication by itself. |
+| Windows diagnostics | Real measurements from supported operating-system tools, subject to network conditions. |
+| Fault simulation | Controlled application-level scenarios, not kernel-level packet shaping. |
+| Performance results | Results for the tested workload and configuration, not universal guarantees. |
+
+### 🔭 Future Improvements
+
+- Add repeatable test scenarios with machine-readable result reports.
+- Expand failure/restart tests and recovery-loop validation.
+- Add more scheduler and retransmission comparisons.
+- Improve diagnostic error handling for blocked ICMP and incomplete route traces.
+- Investigate Mininet or another dedicated network emulator for more realistic topology and packet-level experiments.
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ to explore network reliability, recovery and file-transfer behavior.</strong>
+</p>
+
+<p align="center">
+  <sub>NetRescue — observe the network, test the behavior, verify the results.</sub>
+</p>
