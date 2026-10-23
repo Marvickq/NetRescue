@@ -1,6 +1,4 @@
- <p align="center">
-  <img src="apps/dashboard/public/netrescue-symbol.png" alt="NetRescue" width="120" />
-</p>
+
 
 <h1 align="center">🌌 NetRescue</h1>
 
@@ -128,9 +126,7 @@ Simple failure thresholds can cause **route flapping**. A single transfer path c
 
 ## 🛡️ Feature 1 — Hysteresis-Based Recovery
 
-<p align="center">
-  <img src="apps/dashboard/public/hysteresis-recovery.png" alt="NetRescue hysteresis recovery illustration" width="85%" />
-</p>
+
 
 ### The problem
 
@@ -175,9 +171,7 @@ A failure detector should not treat every temporary quality drop as a permanent 
 
 ## 📦 Feature 2 — Multipath Reliable File Transfer
 
-<p align="center">
-  <img src="apps/dashboard/public/multipath-transfer.png" alt="NetRescue multipath transfer illustration" width="85%" />
-</p>
+
 
 ### The problem
 
@@ -247,9 +241,7 @@ This feature demonstrates how chunk scheduling, retransmission, reassembly and i
 
 ## 🔬 Feature 3 — Windows Network Diagnostics & Benchmarking
 
-<p align="center">
-  <img src="apps/dashboard/public/network-diagnostics.png" alt="NetRescue Windows network diagnostics illustration" width="85%" />
-</p>
+
 
 ### The problem
 
