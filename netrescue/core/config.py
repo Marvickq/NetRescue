@@ -55,10 +55,28 @@ class Settings(BaseSettings):
     cors_origins: str = Field(
         default="",
         description=(
-            "Comma-separated browser origins allowed to call this API. Empty means "
-            "'any loopback origin', which covers every local Vite dev port without "
-            "having to enumerate them. Set this explicitly before exposing the API "
-            "beyond localhost."
+            "Comma-separated, exact browser origins (scheme://host[:port], no wildcard) "
+            "allowed to call this API, e.g. the deployed frontend's URL. Local "
+            "development origins are allowed in addition while CORS_ALLOW_LOOPBACK is true."
+        ),
+    )
+
+    cors_allow_loopback: bool = Field(
+        default=True,
+        description=(
+            "Also allow any http(s)://localhost, 127.0.0.1 or [::1] origin, so local "
+            "Vite dev servers work on any port. Set false on a hosted API that should "
+            "serve only the origins in CORS_ORIGINS."
+        ),
+    )
+
+    public_demo: bool = Field(
+        default=False,
+        description=(
+            "Hosted-demo mode. Callers without a valid X-NetRescue-Token may use the "
+            "operator role ONLY on the simulation routes listed in "
+            "netrescue.security.demo; everything else stays readonly. No secret ships "
+            "to the browser. Leave false unless the API is a public demo."
         ),
     )
 

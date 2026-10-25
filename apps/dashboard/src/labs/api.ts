@@ -5,54 +5,17 @@
  * here invents a number. Errors carry the server's own explanation (the API
  * returns a readable `detail` for every validation failure).
  */
-import { API_BASE, ApiError } from '../diagnostics/api';
+import { apiRequest, ApiError } from '../api/client';
 
 export { ApiError };
 
-function headers(): Record<string, string> {
-    return {
-        'X-NetRescue-Principal': import.meta.env.VITE_PRINCIPAL ?? 'labs',
-        'X-NetRescue-Role': import.meta.env.VITE_ROLE ?? 'operator',
-        'Content-Type': 'application/json',
-    };
-}
-
-function describe(payload: unknown): string {
-    const detail = (payload as { detail?: unknown } | null)?.detail;
-    if (typeof detail === 'string') return detail;
-    if (Array.isArray(detail)) {
-        return detail
-            .map((d: { loc?: unknown[]; msg?: string }) =>
-                `${(d.loc ?? []).filter(x => x !== 'body').join('.')}: ${d.msg ?? 'invalid'}`)
-            .join('; ');
-    }
-    return typeof payload === 'string' && payload ? payload : 'The request failed.';
-}
-
-async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-    let response: Response;
-    try {
-        response = await fetch(`${API_BASE}${path}`, {
-            method,
-            headers: headers(),
-            body: body === undefined ? undefined : JSON.stringify(body),
-        });
-    } catch (cause) {
-        throw new ApiError(
-            `Could not reach the NetRescue API at ${API_BASE}. Start it with: ` +
-                `uvicorn apps.api.main:app --host 127.0.0.1 --port 8000`,
-            0,
-            cause,
-        );
-    }
-    const text = await response.text();
-    let payload: unknown = null;
-    if (text) {
-        try { payload = JSON.parse(text); } catch { payload = text; }
-    }
-    if (!response.ok) throw new ApiError(describe(payload), response.status, payload);
-    return payload as T;
-}
+const call = <T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> =>
+    apiRequest<T>(path, {
+        principal: 'labs',
+        timeoutMs: 120_000,
+        method,
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
 
 // -- shapes (only the fields the UI reads) ---------------------------------
 

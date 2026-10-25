@@ -52,10 +52,8 @@ describe('Dijkstra lab — workflow and mode', () => {
     it('shows the run guide and the execution mode before the explanation', async () => {
         mount();
         await ready();
-        const guide = screen.getByTestId('workflow');
+        expect(screen.queryByTestId('workflow')).toBeNull();
         const about = screen.getByRole('region', { name: 'About this experiment' });
-        expect(guide.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(guide).toHaveTextContent('Build your network');
         await waitFor(() => expect(screen.getByTestId('mode-panel')).toHaveAttribute('data-mode', 'SIMULATION'));
         expect(about).toHaveTextContent(/not a routing protocol/i);
         expect(about).toHaveTextContent(/distance-vector routing is not implemented/i);

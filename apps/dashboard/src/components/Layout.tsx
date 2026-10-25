@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import HostedNotice from './HostedNotice';
 import { ConsentProvider } from '../consent/ConsentContext';
 import ConsentPanel from '../consent/ConsentPanel';
 
@@ -28,6 +29,7 @@ export default function Layout() {
             <AnimatePresence mode="wait">
                 <Outlet key={location.pathname} />
             </AnimatePresence>
+            <HostedNotice />
             <Footer />
             <ConsentPanel />
         </ConsentProvider>

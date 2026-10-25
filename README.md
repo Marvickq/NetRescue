@@ -366,6 +366,10 @@ Use the project's documented frontend build or test commands to validate the das
 
 ---
 
+## ☁️ Deploying to Render
+
+Hosted deployment (CORS origins, `PUBLIC_DEMO`, env vars, what can and cannot run remotely) is documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## 📁 Project Structure
 
 ```text

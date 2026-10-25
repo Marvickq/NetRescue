@@ -21,7 +21,7 @@ vi.mock('../labs/api', async importOriginal => {
 
 import { labsApi } from '../labs/api';
 import { resetExecutionProfileCache } from '../labs/ui';
-import { JOURNEY, WORKFLOWS } from '../labs/workflows';
+import { JOURNEY } from '../labs/workflows';
 import App from '../App';
 
 function at(path: string) {
@@ -49,8 +49,7 @@ describe('direct navigation still works for every page', () => {
     ])('%s', async (url, heading, id) => {
         at(url);
         expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(heading);
-        const guide = screen.getByTestId('workflow');
-        for (const s of WORKFLOWS[id].steps) expect(guide).toHaveTextContent(s.title);
+        expect(screen.queryByTestId('workflow')).toBeNull();
         expect(screen.getByTestId('journey')).toBeInTheDocument();
         await waitFor(() => expect(screen.getByTestId('mode-panel')).toHaveAttribute('data-mode'));
     });
@@ -59,10 +58,10 @@ describe('direct navigation still works for every page', () => {
         ['/features/hysteresis/playground', 'hysteresis', 'MIXED'],
         ['/features/multipath/playground', 'multipath', 'SIMULATION'],
         ['/features/diagnostics/playground', 'diagnostics', 'MIXED'],
-    ])('existing playground %s now opens with a run guide and its execution mode', async (url, id, mode) => {
+    ])('existing playground %s opens with its execution mode and no run guide', async (url, id, mode) => {
         at(url);
-        const guide = await screen.findByTestId('workflow');
-        for (const s of WORKFLOWS[id].steps) expect(guide).toHaveTextContent(s.title);
+        await screen.findByTestId('mode-panel');
+        expect(screen.queryByTestId('workflow')).toBeNull();
         await waitFor(() => expect(screen.getByTestId('mode-panel')).toHaveAttribute('data-mode', mode));
     });
 

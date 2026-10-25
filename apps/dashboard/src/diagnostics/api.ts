@@ -23,98 +23,19 @@ import type {
     TracerouteResult,
 } from './types';
 
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000').replace(
-    /\/$/,
-    '',
-);
+import { apiFetch, apiRequest, ApiError, API_BASE, describePayload } from '../api/client';
 
-export const API_BASE = RAW_BASE;
-const IS_RELATIVE_BASE = RAW_BASE.startsWith('/');
+export { API_BASE, ApiError };
 
-export class ApiError extends Error {
-    constructor(
-        message: string,
-        readonly status: number,
-        readonly detail?: unknown,
-    ) {
-        super(message);
-        this.name = 'ApiError';
-    }
-}
-
-function authHeaders(): Record<string, string> {
-    // Diagnostics read the host's real network and start benchmarks, so the lab
-    // asks for the operator role explicitly rather than a read-only default.
-    return {
-        'X-NetRescue-Principal': import.meta.env.VITE_PRINCIPAL ?? 'diagnostics-lab',
-        'X-NetRescue-Role': import.meta.env.VITE_ROLE ?? 'operator',
-    };
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await send(path, init);
-    if (response.status === 204) return undefined as T;
-
-    const text = await response.text();
-    let payload: unknown = null;
-    if (text) {
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            payload = text;
-        }
-    }
-    if (!response.ok) throw new ApiError(describe(payload), response.status, payload);
-    return payload as T;
-}
-
-async function send(path: string, init: RequestInit = {}): Promise<Response> {
-    try {
-        return await fetch(`${RAW_BASE}${path}`, {
-            ...init,
-            headers: {
-                ...authHeaders(),
-                ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-                ...(init.headers as Record<string, string> | undefined),
-            },
-        });
-    } catch (cause) {
-        const crossOrigin = !IS_RELATIVE_BASE && window.location.origin !== new URL(RAW_BASE).origin;
-        throw new ApiError(
-            crossOrigin
-                ? `The request was blocked before it reached the API. The API allows ` +
-                  `loopback origins by default and this page is served from ${window.location.origin}.`
-                : `Could not reach the NetRescue API at ${RAW_BASE}. Start it with: ` +
-                  `uvicorn apps.api.main:app --host 127.0.0.1 --port 8000`,
-            0,
-            cause,
-        );
-    }
-}
-
-function describe(payload: unknown): string {
-    const detail =
-        payload && typeof payload === 'object' && 'detail' in payload
-            ? (payload as { detail: unknown }).detail
-            : payload;
-
-    // The diagnostics router returns { error, kind, hint } so the operator reads
-    // the specific reason ("ping is not available here") and what to do about it.
-    if (detail && typeof detail === 'object') {
-        const d = detail as Record<string, unknown>;
-        if (typeof d.error === 'string') {
-            return d.hint ? `${d.error} ${String(d.hint)}` : d.error;
-        }
-        if ('message' in d) return String(d.message);
-    }
-    if (typeof detail === 'string') return detail;
-    if (Array.isArray(detail) && detail.length) {
-        return detail
-            .map((d) => (typeof d === 'object' && d && 'msg' in d ? String(d.msg) : String(d)))
-            .join('; ');
-    }
-    return 'The request failed.';
-}
+// All HTTP concerns (base URL, identity headers, timeout, error wording) live in
+// ../api/client so every feature behaves the same way.
+const request = <T>(path: string, init: RequestInit = {}): Promise<T> =>
+    apiRequest<T>(path, {
+        principal: 'diagnostics-lab',
+        timeoutMs: 300_000,
+        ...init,
+        headers: init.headers as Record<string, string> | undefined,
+    });
 
 export interface RunBody {
     target?: string;
@@ -254,9 +175,10 @@ export const diagnosticsApi = {
 
     /** The server streams the export body; read it as text and hand it to a download. */
     exportRun: async (id: string, format: 'json' | 'csv') => {
-        const response = await send(
-            `/api/diagnostics/runs/${encodeURIComponent(id)}/export?format=${format}`,
-        );
+        const response = await apiFetch(`/api/diagnostics/runs/${encodeURIComponent(id)}/export?format=${format}`, {
+            principal: 'diagnostics-lab',
+            timeoutMs: 300_000,
+        });
         if (!response.ok) {
             let payload: unknown = null;
             try {
@@ -264,7 +186,7 @@ export const diagnosticsApi = {
             } catch {
                 /* an unparseable error body is not worth a second failure */
             }
-            throw new ApiError(describe(payload), response.status, payload);
+            throw new ApiError(describePayload(payload, response.status), response.status, payload);
         }
         return { filename: `${id}.${format}`, content: await response.text() };
     },

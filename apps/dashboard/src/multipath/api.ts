@@ -15,94 +15,21 @@ import type {
     VariantComparison,
 } from './types';
 
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000').replace(
-    /\/$/,
-    '',
-);
+import { apiFetch, apiRequest, ApiError, API_BASE, describePayload } from '../api/client';
 
-export const API_BASE = RAW_BASE;
-const IS_RELATIVE_BASE = RAW_BASE.startsWith('/');
+export { API_BASE, ApiError };
 
-export class ApiError extends Error {
-    constructor(
-        message: string,
-        readonly status: number,
-        readonly detail?: unknown,
-    ) {
-        super(message);
-        this.name = 'ApiError';
-    }
-}
+// All HTTP concerns (base URL, identity headers, timeout, error wording) live in
+// ../api/client so every feature behaves the same way.
+const request = <T>(path: string, init: RequestInit = {}): Promise<T> =>
+    apiRequest<T>(path, {
+        principal: 'multipath-lab',
+        timeoutMs: 300_000,
+        ...init,
+        headers: init.headers as Record<string, string> | undefined,
+    });
 
-function authHeaders(): Record<string, string> {
-    // The lab uploads files and starts transfers, so it asks for the operator
-    // role explicitly rather than inheriting a read-only default.
-    return {
-        'X-NetRescue-Principal': import.meta.env.VITE_PRINCIPAL ?? 'multipath-lab',
-        'X-NetRescue-Role': import.meta.env.VITE_ROLE ?? 'operator',
-    };
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    let response: Response;
-    try {
-        response = await fetch(`${RAW_BASE}${path}`, {
-            ...init,
-            headers: {
-                ...authHeaders(),
-                ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-                ...(init.headers as Record<string, string> | undefined),
-            },
-        });
-    } catch (cause) {
-        const crossOrigin =
-            !IS_RELATIVE_BASE && window.location.origin !== new URL(RAW_BASE).origin;
-        throw new ApiError(
-            crossOrigin
-                ? `The request was blocked before it reached the API. The API allows ` +
-                  `loopback origins by default and this page is served from ` +
-                  `${window.location.origin}.`
-                : `Could not reach the NetRescue API at ${RAW_BASE}. Start it with: ` +
-                  `uvicorn apps.api.main:app --host 127.0.0.1 --port 8000`,
-            0,
-            cause,
-        );
-    }
-
-    if (response.status === 204) return undefined as T;
-
-    const text = await response.text();
-    let payload: unknown = null;
-    if (text) {
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            payload = text;
-        }
-    }
-    if (!response.ok) throw new ApiError(describe(payload), response.status, payload);
-    return payload as T;
-}
-
-function describe(payload: unknown): string {
-    const detail =
-        payload && typeof payload === 'object' && 'detail' in payload
-            ? (payload as { detail: unknown }).detail
-            : payload;
-
-    if (detail && typeof detail === 'object' && 'message' in detail) {
-        return String((detail as { message: unknown }).message);
-    }
-    if (typeof detail === 'string') return detail;
-    if (Array.isArray(detail) && detail.length) {
-        return detail
-            .map(d =>
-                typeof d === 'object' && d && 'msg' in d ? String(d.msg) : String(d),
-            )
-            .join('; ');
-    }
-    return 'The request failed.';
-}
+const describe = (payload: unknown) => describePayload(payload);
 
 export interface UploadBody {
     filename: string;
@@ -178,9 +105,7 @@ export const xferApi = {
 
     /** The reconstructed payload, fetched as bytes rather than JSON. */
     download: async () => {
-        const response = await fetch(`${RAW_BASE}/api/xfer/download`, {
-            headers: authHeaders(),
-        });
+        const response = await apiFetch('/api/xfer/download', { principal: 'multipath-lab', timeoutMs: 300_000 });
         if (!response.ok) {
             let detail: unknown = null;
             try {

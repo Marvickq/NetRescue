@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from netrescue.core.config import settings
 from netrescue.core.db import get_session
 from netrescue.security.audit import default_auditor
+from netrescue.security.demo import is_demo_operator_route
 from netrescue.security.authz import (
     AuthorizationError,
     Authorizer,
@@ -87,10 +88,20 @@ def resolve_principal(request: Request) -> Principal:
         role = Role.READONLY
     # With a token configured, a claimed role is only honoured when the caller
     # proves it; the headers alone are otherwise trivially forgeable.
+    # Hosted demo: a caller with no proof may hold the operator role on the
+    # simulation allow-list only (netrescue.security.demo). No other role is
+    # ever granted this way.
+    demo_grant = (
+        settings.public_demo
+        and role is Role.OPERATOR
+        and is_demo_operator_route(request.method, request.url.path)
+    )
     if settings.api_auth_token and role is not Role.READONLY:
         supplied = request.headers.get("X-NetRescue-Token", "")
         if not hmac.compare_digest(supplied.encode(), settings.api_auth_token.encode()):
-            role = Role.READONLY
+            role = Role.OPERATOR if demo_grant else Role.READONLY
+    elif settings.public_demo and role is not Role.READONLY and not demo_grant:
+        role = Role.READONLY
     return Principal(name=name, role=role)
 
 

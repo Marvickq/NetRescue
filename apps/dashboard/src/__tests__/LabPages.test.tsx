@@ -44,12 +44,10 @@ beforeEach(() => {
     api.integration.mockResolvedValue(integrationFixture as never);
 });
 
-/** Every lab page: the run guide comes first, the explanation last. */
+/** Every lab page: no run guide before the demo; the explanation is still present. */
 function expectGuideBeforeExplanation() {
-    const guide = screen.getByTestId('workflow');
-    const about = screen.getByRole('region', { name: 'About this experiment' });
-    expect(guide.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(guide).getAllByText(/^Step \d$/)).toHaveLength(5);
+    expect(screen.queryByTestId('workflow')).toBeNull();
+    expect(screen.getByRole('region', { name: 'About this experiment' })).toBeInTheDocument();
 }
 
 describe('TCP congestion lab', () => {

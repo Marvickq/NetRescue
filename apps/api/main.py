@@ -6,9 +6,9 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from netrescue.core.config import settings
+from netrescue.core.cors import install_cors, parse_cors_origins
 from netrescue.core.db import DatabaseUnavailable, create_all_tables
 from netrescue.core.models import Base
 
@@ -125,33 +125,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — loopback only by default (PRD §2.2 rule 4)
+# CORS — an explicit allow-list, never a wildcard.
 #
-# The origin list must not be a hardcoded pair of ports. The console's dev server
-# picks a port, and a port that is not listed fails the preflight with a bare
-# 400 that the browser reports as an opaque network error — which reads to an
-# operator as "the API is down" when the API is running perfectly. So: any
-# loopback origin by default, and an explicit list when CORS_ORIGINS is set.
-_cors = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+# CORS_ORIGINS lists the exact frontend origins (the deployed site); loopback
+# origins are added on top for local development while CORS_ALLOW_LOOPBACK is
+# true. A malformed list stops startup with a message naming the variable, because
+# a wrong CORS policy otherwise surfaces in the browser as an opaque network error.
+# Authentication is header-based (no cookies), so credentials are not enabled.
+_cors = parse_cors_origins(settings.cors_origins)
 
-if _cors:
-    _allow_origins = _cors
-    logger_note = f"explicit origins: {', '.join(_cors)}"
-else:
-    # Regex form: matches http://localhost:<port> and http://127.0.0.1:<port>,
-    # and nothing else. A non-loopback origin is still rejected.
-    _allow_origins = [r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"]
-    logger_note = "any loopback origin (set CORS_ORIGINS to restrict)"
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=_allow_origins[0] if not settings.cors_origins else None,
-    allow_origins=_allow_origins if settings.cors_origins else [],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+install_cors(app, _cors, settings.cors_allow_loopback)
+log.info(
+    "CORS: origins=%s loopback=%s",
+    ", ".join(_cors) or "(none)",
+    settings.cors_allow_loopback,
 )
-log.info("CORS: %s", logger_note)
+if settings.public_demo:
+    log.warning(
+        "PUBLIC_DEMO is on: tokenless callers get the operator role on the simulation "
+        "routes in netrescue.security.demo only."
+    )
 
 if settings.api_bind_host not in ("127.0.0.1", "localhost", "::1") and not settings.api_auth_token:
     log.warning(

@@ -18,4 +18,4 @@ COPY apps/api/ ./apps/api/
 COPY pyproject.toml .
 
 # Create schema and start API
-CMD ["sh", "-c", "python -c 'from netrescue.core.db import create_all_tables; create_all_tables()' && uvicorn apps.api.main:app --host ${API_BIND_HOST:-0.0.0.0} --port ${API_BIND_PORT:-8000}"]
+CMD ["sh", "-c", "python -c 'from netrescue.core.db import create_all_tables; create_all_tables()' && uvicorn apps.api.main:app --host ${API_BIND_HOST:-0.0.0.0} --port ${PORT:-${API_BIND_PORT:-8000}}"]

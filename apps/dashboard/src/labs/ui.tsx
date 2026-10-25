@@ -191,7 +191,6 @@ export function LabPage({ title, subtitle, back, experiment, children }: {
                 <JourneyBar current={experiment} />
             </header>
             <div className="mt-5 space-y-5">
-                <ExperimentWorkflow id={experiment} />
                 <FeatureModePanel feature={experiment} />
                 {children}
                 <section aria-label="About this experiment" className="border-t border-white/10 pt-4">
@@ -229,7 +228,6 @@ export function StaleBanner({ stale, onRerun }: { stale: boolean; onRerun?: () =
 export function RunGuide({ experiment }: { experiment: string }) {
     return (
         <div className="mt-5 space-y-4" data-testid="run-guide">
-            <ExperimentWorkflow id={experiment} />
             <FeatureModePanel feature={experiment} />
         </div>
     );
