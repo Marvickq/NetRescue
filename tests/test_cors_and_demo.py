@@ -173,3 +173,41 @@ def test_token_holder_keeps_full_operator_in_demo(monkeypatch):
     assert deps.resolve_principal(_req("POST", "/api/diagnostics/run", h)).role is Role.OPERATOR
     bad = {**OP, "X-NetRescue-Token": "nope"}
     assert deps.resolve_principal(_req("POST", "/api/diagnostics/run", bad)).role is Role.READONLY
+
+
+# -- the deployed failure, end to end ----------------------------------------
+
+
+def _app_client(monkeypatch, *, demo):
+    """The real app, configured like the Render backend: token set, browser headers only."""
+    from apps.api import deps
+    from apps.api.main import app
+
+    monkeypatch.setattr(deps.settings, "api_auth_token", "server-side-secret")
+    monkeypatch.setattr(deps.settings, "public_demo", demo)
+    return TestClient(app)
+
+
+BROWSER = {"X-NetRescue-Role": "operator", "X-NetRescue-Principal": "labs"}
+
+
+def test_hosted_writes_were_403_without_demo_mode(monkeypatch):
+    """Reproduces the reported bug: a token-protected API rejects the tokenless browser."""
+    r = _app_client(monkeypatch, demo=False).post("/api/labs/shaping/simulate", headers=BROWSER, json={})
+    assert r.status_code == 403
+
+
+def test_hosted_simulations_run_in_demo_mode(monkeypatch):
+    c = _app_client(monkeypatch, demo=True)
+    for path in ("/api/labs/shaping/simulate", "/api/labs/tcp/simulate", "/api/labs/tcp-udp/simulate",
+                 "/api/diagnostics/hysteresis-sweep", "/api/traffic/run"):
+        assert c.post(path, headers=BROWSER, json={}).status_code in (200, 201), path
+    assert c.post("/api/playground/topology/example", headers=BROWSER).status_code == 200
+
+
+def test_hosted_host_operations_stay_denied_in_demo_mode(monkeypatch):
+    c = _app_client(monkeypatch, demo=True)
+    assert c.post("/api/labs/tcp-udp/real", headers=BROWSER, json={}).status_code == 403
+    assert c.post("/api/diagnostics/run", headers=BROWSER, json={}).status_code == 403
+    assert c.delete("/api/diagnostics/runs", headers=BROWSER).status_code == 403
+    assert c.post("/api/lab/topology", headers=BROWSER, json={}).status_code == 403

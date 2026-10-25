@@ -8,6 +8,7 @@
  * The mode badge, the method and the limitations come from the API response.
  */
 import React, { useState } from 'react';
+import LocalOnlyNote from '../components/LocalOnlyNote';
 import { Play } from 'lucide-react';
 import { labsApi, type TcpUdpResult } from '../labs/api';
 import {
@@ -71,7 +72,12 @@ export default function TcpUdpLabPage() {
                             Runs real TCP and UDP sockets on 127.0.0.1 inside the API process. Loopback has no
                             latency, bandwidth limit or normal packet loss, so this measures this machine's stack — not a network.
                         </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <LocalOnlyNote>
+                            On this hosted site the sockets would run on the Render server, not on your device, so this
+                            experiment is disabled for public visitors. Run NetRescue locally to measure your own machine,
+                            or use the Simulation tab.
+                        </LocalOnlyNote>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3">
                             <Field label="Ping round trips" value={real.ping_count} min={10} max={2000} onChange={setR('ping_count')} />
                             <Field label="Ping payload (bytes)" value={real.payload_bytes} min={8} max={1400} onChange={setR('payload_bytes')} />
                             <Field label="TCP bulk (bytes)" value={real.bulk_bytes} min={100000} max={64000000} onChange={setR('bulk_bytes')} />

@@ -118,3 +118,34 @@ instances sleep: the first request after idle can take about a minute.
 - [ ] `PYTHON_VERSION` ≥ 3.11.
 - [ ] `/health` returns `ok`; preflight checks above behave as described.
 - [ ] No `.env` or secrets committed (`.env` is git-ignored; only `.env.example` is tracked).
+
+## Troubleshooting: "Connected to the hosted API" but features fail
+
+Reads (`GET`) working while every run/simulate button fails means the API is up and CORS is
+fine, but writes are being denied. Check from any machine with `curl` (no Python needed):
+
+```
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://netrescue.onrender.com/api/labs/shaping/simulate \
+  -H "Origin: https://netrescue-1.onrender.com" -H "X-NetRescue-Role: operator" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+- `403` with `lacks permission 'write'` → `API_AUTH_TOKEN` is set but `PUBLIC_DEMO` is not (or the
+  backend has not been redeployed with the version that supports it). Set `PUBLIC_DEMO=true`, redeploy.
+- `200` / `422` → authorised (422 only means the empty body is invalid).
+- `502` / no response after ~100 s → the instance is asleep or the request is too slow; retry.
+
+Expected in hosted demo mode: simulation labs, seeded fault scenarios, hysteresis sweep, multipath
+and playground **work**; **Run Diagnostics / benchmarks, the real TCP-vs-UDP experiment, run-history
+delete, `tc/netem`, and the recovery lab return 403 by design** and the UI labels them as local-only.
+
+## Verifying without installing Python
+
+- **Backend tests:** push to GitHub; `.github/workflows/ci.yml` runs `pytest` on Python 3.11, plus the
+  frontend type-check, tests and build. Nothing to install locally.
+- **Deployed API:** the `curl` commands above and the Verify section need only `curl`
+  (included with Windows 10/11; use `curl.exe` in PowerShell).
+- **Browser:** open the site, press F12 → Network, run a lab; each call should be 200/201 and the
+  console should show no CORS errors. A 403 on a write is the case described above.
+- **Interactive API docs:** `https://netrescue.onrender.com/docs` can send the same requests from the
+  browser (add the `X-NetRescue-Role: operator` header via "Try it out" to mimic the site).

@@ -17,6 +17,8 @@
  * passes its result in; the interactive tools below own their own state.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import LocalOnlyNote from '../components/LocalOnlyNote';
+import { IS_REMOTE_API } from '../api/client';
 import {
     diagnosticsApi,
     downloadText,
@@ -357,7 +359,12 @@ export default function DiagnosticsLab({ run, loading, error, onRerun }: Diagnos
         setSchedulerBusy(true);
         setActionError(null);
         try {
-            setScheduler(await diagnosticsApi.schedulerComparison({ repetitions: 5 }));
+            setScheduler(await diagnosticsApi.schedulerComparison({
+                // The comparison runs modelled path delays in real time. The default
+                // 256 kB payload takes minutes, past a hosted proxy's ~100 s limit.
+                repetitions: 5,
+                ...(IS_REMOTE_API ? { payload_bytes: 32_000 } : {}),
+            }));
         } catch (e) {
             setActionError(errText(e));
         } finally {
@@ -439,6 +446,12 @@ export default function DiagnosticsLab({ run, loading, error, onRerun }: Diagnos
                     <span>unavailable here</span>
                 </div>
             </div>
+
+            <LocalOnlyNote>
+                Live probes (adapters, ping, traceroute, DNS, benchmarks) would run on the Render server, not on your
+                network, and are disabled for public visitors. The seeded fault scenarios, hysteresis sweep and
+                scheduler comparison are simulations and work here. Run NetRescue locally for real measurements.
+            </LocalOnlyNote>
 
             {(error || actionError || statusError) && (
                 <ErrorNote message={error || actionError || statusError || ''} />

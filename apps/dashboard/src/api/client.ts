@@ -136,8 +136,8 @@ export function describePayload(payload: unknown, status = 0): string {
     if (typeof detail === 'string' && detail) {
         if (status === 403) {
             return (
-                `${detail} The hosted API only grants the operator role to simulation ` +
-                'features; real-host operations need a deployment with API_AUTH_TOKEN.'
+                `${detail} This API grants public visitors the operator role only for ` +
+                'simulation features; real-host operations need the API token or a local install.'
             );
         }
         return detail;
