@@ -452,6 +452,10 @@ class LabRuntime:
 
         self._mark_links(self._incident_links(node_id), failed=False)
         await node.start()
+        # node.stop() ended this node's heartbeat loop (it runs while _running), so
+        # a restored node must get a new one. Without it the node is silent, its
+        # neighbours never hear it recover, and routes through it stay down.
+        self._heartbeats.append(asyncio.create_task(node.heartbeat_loop()))
         for other in self.nodes.values():
             if other is node:
                 continue

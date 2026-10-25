@@ -548,7 +548,15 @@ class ForwardingNode:
                 header = await reader.readexactly(HEADER.size)
                 magic, version, mtype, flags, length = HEADER.unpack(header)
                 if magic != MAGIC or version != VERSION:
-                    raise ProtocolError("bad framing")
+                    # Not a NetRescue peer (a port scan, an HTTP client, a stale
+                    # sender). Count it and record who and what, exactly as the
+                    # other rejection paths do, so the source can be identified.
+                    self.dropped_invalid += 1
+                    self._emit(EventType.AUTH_FAILURE.value, {
+                        "node_id": self.node_id, "reason": "bad_framing",
+                        "peer": str(peer), "first_bytes": header.hex(),
+                    }, Severity.WARNING)
+                    raise ProtocolError(f"bad framing (first bytes {header.hex()})")
                 if length > MAX_PAYLOAD:
                     raise ProtocolError(f"oversized payload {length}")
                 body = await reader.readexactly(length)

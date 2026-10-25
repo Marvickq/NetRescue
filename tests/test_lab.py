@@ -265,6 +265,17 @@ class TestFailureAndRecovery:
         result = await lab.send("A", "C", b"back", timeout=4.0)
         assert result["delivered"] is True
 
+    async def test_restored_node_resumes_sending_heartbeats(self, lab):
+        """node.stop() ends its heartbeat loop; restore must start a new one, or the
+        node stays silent and its neighbours never see it recover."""
+        await lab.start(["A", "B", "C"], "line")
+        await lab.fail_node("B")
+        await lab.restore_node("B")
+        b = lab.nodes["B"]
+        before = b.sent
+        await asyncio.sleep(b.heartbeat_interval_s * 3 + 0.5)
+        assert b.sent > before, "a restored node must keep sending heartbeats"
+
     async def test_link_failure_isolates_only_that_link(self, lab):
         await lab.start(["A", "B", "C"], "line")
         await lab.fail_link("A-B")

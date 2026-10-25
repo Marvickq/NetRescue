@@ -335,3 +335,41 @@ async def test_forged_message_is_rejected():
         assert victim.forwarded == 0
     finally:
         await victim.stop()
+
+@pytest.mark.asyncio
+async def test_non_netrescue_bytes_are_recorded_and_do_not_disturb_delivery():
+    """Garbage on a node port is counted with its peer and bytes, and real traffic still flows."""
+    ports = free_ports(2)
+    key = generate_key()
+    events = []
+    delivered = asyncio.Event()
+
+    a = ForwardingNode("A", port=ports[0], shared_key=key)
+    b = ForwardingNode("B", port=ports[1], shared_key=key,
+                       on_event=lambda t, p: (events.append((t, p)),
+                                               delivered.set() if t == "transfer.chunk_delivered" else None))
+    a.add_neighbour("B", "127.0.0.1", ports[1])
+    b.add_neighbour("A", "127.0.0.1", ports[0])
+    for node in (a, b):
+        node.install_topology(["A", "B"], [("A", "B")])
+        await node.start()
+    try:
+        # An HTTP client wandering onto the port: not a NetRescue frame.
+        reader, writer = await asyncio.open_connection("127.0.0.1", ports[1])
+        writer.write(b"GET / HTTP/1.1\r\n\r\n")
+        await writer.drain()
+        assert await asyncio.wait_for(reader.read(), timeout=3.0) == b""  # node closes it
+        writer.close()
+
+        assert b.dropped_invalid == 1
+        bad = [p for t, p in events if p.get("reason") == "bad_framing"]
+        assert len(bad) == 1 and bad[0]["first_bytes"].startswith(b"GET".hex())
+        assert bad[0]["peer"].startswith("('127.0.0.1'")
+
+        # The node is unaffected: a genuine message is still delivered.
+        a.recompute_routes()
+        assert await a.send_data("127.0.0.1", ports[0], destination="B", body=b"still-works")
+        await asyncio.wait_for(delivered.wait(), timeout=5.0)
+    finally:
+        for node in (a, b):
+            await node.stop()
