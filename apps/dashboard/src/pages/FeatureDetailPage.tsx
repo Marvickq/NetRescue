@@ -7,6 +7,8 @@ import NetRescueLogo from '../components/NetRescueLogo';
 import { ScrambleIn, ScrambleText } from '../components/ScrambleText';
 import { getFeature, getAdjacent, features } from '../data/features';
 import type { FeatureSection } from '../data/features';
+import { ExperimentWorkflow, FeatureModePanel } from '../labs/ui';
+import { FEATURE_MODE, FEATURE_WORKFLOW } from '../labs/workflows';
 import NotFoundPage from './NotFoundPage';
 
 export default function FeatureDetailPage() {
@@ -80,10 +82,6 @@ export default function FeatureDetailPage() {
                     >
                         <ChevronRight size={20} />
                     </button>
-                    <a href="#" className="hidden sm:flex h-9 px-4 bg-white text-black rounded-full items-center gap-2 text-[13px] font-medium ml-4">
-                        <i className="bi bi-apple" />
-                        <ScrambleText text="Download" />
-                    </a>
                 </div>
             </header>
 
@@ -135,9 +133,35 @@ export default function FeatureDetailPage() {
                                 <span aria-hidden="true">→</span>
                             </Link>
                         )}
+                        {feature.lab && (
+                            <Link
+                                to={feature.lab.to}
+                                className="shrink-0 h-12 px-6 bg-white text-black rounded-full inline-flex items-center gap-2 text-[14px] font-medium self-start md:self-end hover:bg-white/90 transition-colors"
+                            >
+                                {feature.lab.label}
+                                <span aria-hidden="true">→</span>
+                            </Link>
+                        )}
+                        {feature.id === 'feature-d' && (
+                            <Link
+                                to="/features/diagnostics/playground"
+                                className="shrink-0 h-12 px-6 bg-white text-black rounded-full inline-flex items-center gap-2 text-[14px] font-medium self-start md:self-end hover:bg-white/90 transition-colors"
+                            >
+                                Try Interactive Demo
+                                <span aria-hidden="true">→</span>
+                            </Link>
+                        )}
                     </div>
                 </div>
             </section>
+
+            {/* How to run this experiment comes before any explanation. */}
+            {FEATURE_WORKFLOW[feature.id] && (
+                <section className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-10 space-y-4" data-testid="detail-run-guide">
+                    <ExperimentWorkflow id={FEATURE_WORKFLOW[feature.id]} />
+                    {FEATURE_MODE[feature.id] && <FeatureModePanel feature={FEATURE_MODE[feature.id]} />}
+                </section>
+            )}
 
             {/* Content grid: sidebar + content */}
             <section className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-16">
@@ -215,6 +239,37 @@ export default function FeatureDetailPage() {
                                     <ul className="list-disc pl-6 text-white/50 space-y-2 text-[14px] leading-relaxed">
                                         {s.bullets.map((b, bi) => <li key={bi}>{b}</li>)}
                                     </ul>
+                                )}
+                                {/* Supporting video. Loaded from youtube-nocookie so
+                                    nothing is requested until the user scrolls to it and
+                                    no tracking cookie is set. */}
+                                {s.videoId && (
+                                    <figure className="mt-8">
+                                        <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
+                                            <iframe
+                                                className="absolute inset-0 w-full h-full"
+                                                src={`https://www.youtube-nocookie.com/embed/${s.videoId}`}
+                                                title={s.videoTitle ?? 'Embedded video'}
+                                                loading="lazy"
+                                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                referrerPolicy="strict-origin-when-cross-origin"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                        <figcaption className="mt-3 text-[13px] text-white/40 leading-relaxed">
+                                            {s.videoTitle}
+                                            {s.videoAuthor && <> &mdash; {s.videoAuthor}</>}
+                                            {' \u00b7 '}
+                                            <a
+                                                href={`https://www.youtube.com/watch?v=${s.videoId}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-white/60 hover:text-white underline underline-offset-2 transition-colors"
+                                            >
+                                                Watch on YouTube
+                                            </a>
+                                        </figcaption>
+                                    </figure>
                                 )}
                             </div>
                         ))}

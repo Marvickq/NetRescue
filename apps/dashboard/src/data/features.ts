@@ -1,4 +1,4 @@
-export type FeatureId = 'feature-a' | 'feature-c' | 'feature-d';
+export type FeatureId = 'feature-a' | 'feature-c' | 'feature-d' | 'feature-e';
 
 export interface FeatureSection {
     id: string;
@@ -9,6 +9,12 @@ export interface FeatureSection {
         columns: string[];
         rows: string[][];
     };
+    /** YouTube video id, rendered below the section. Absent means no embed. */
+    videoId?: string;
+    /** Exact video title, used as the caption and the iframe's accessible name. */
+    videoTitle?: string;
+    /** Channel name, shown after the title. */
+    videoAuthor?: string;
 }
 
 export interface Feature {
@@ -20,6 +26,8 @@ export interface Feature {
     watermark: string;
     heroVideoUrl: string;
     highlights: string[];
+    /** Interactive lab for this feature, when it has one. */
+    lab?: { to: string; label: string };
     sections: FeatureSection[];
     researchAnchor: string[];
 }
@@ -74,6 +82,8 @@ export const features: Feature[] = [
                     'Optional EWMA filter on heartbeat quality to accelerate convergence',
                     'Hop limits, route versioning, and stale-route rejection prevent loops',
                 ],
+                videoId: 'VpS8eFMRTjw',
+                videoTitle: 'Hysteresis Recovery',
             },
             {
                 id: 'acceptance',
@@ -138,6 +148,8 @@ export const features: Feature[] = [
                     'Bounded retry policy per chunk and per transfer',
                     'Path failure → remove from candidate set and re-route in-flight chunks',
                 ],
+                videoId: 'tzcv2vwYWcQ',
+                videoTitle: 'Multipath Transfer',
             },
             {
                 id: 'acceptance',
@@ -166,69 +178,141 @@ export const features: Feature[] = [
     {
         id: 'feature-d',
         index: 'D',
-        title: 'Network Emulation',
-        tagline: 'Kernel-level delay, jitter, loss, and rate control via tc/netem.',
-        heroSub: 'Reproduce network conditions using the Linux kernel\'s tc/netem facility and serve as the controlled experimental apparatus for Features A and C.',
+        title: 'Network Diagnostics',
+        tagline: 'Real Windows measurements plus a deterministic fault simulator — no Linux kernel required.',
+        heroSub: 'Measure this machine\'s network for real (latency, packet loss, route, DNS, adapters), run repeatable benchmarks, and reproduce fault behaviour with a seeded simulator. It replaces the Linux tc/netem emulator and acts as the measurement apparatus for Features A and B.',
         watermark: 'D',
         heroVideoUrl: VIDEO_URLS.features,
         highlights: [
-            'Linux tc/netem: kernel-level delay, jitter, loss, duplication, corruption, reordering',
-            'Deterministic reproducibility with fixed seed; config hashed and verified per run',
-            'Hysteresis sweep harness and scheduler comparison harness built in',
+            'Real ping/tracert/DNS/adapter measurements using the operating system\'s own tools',
+            'Seeded fault simulator: unreachable, latency/jitter, packet loss, timeout, intermittent',
+            'Every number labelled real, controlled, simulated or unsupported — no fake metrics',
         ],
         sections: [
             {
                 id: 'purpose',
                 heading: 'Purpose',
-                body: 'Independently measure network behaviour under configurable conditions, and serve as the controlled experimental apparatus for Features A and C. Emulation is performed by the Linux kernel\'s tc/netem queue discipline, the standard tool for protocol testing under emulated real-world conditions.',
+                body: 'Measure network behaviour on Windows 10/11 without the Linux kernel, a virtualization layer or administrator rights, and serve as the measurement apparatus for Features A and B. The previous tc/netem emulator was a Linux-only facility; it is replaced by real operating-system probes plus a deterministic software simulator, and the difference is stated everywhere.',
             },
             {
                 id: 'specification',
                 heading: 'Specification',
-                body: 'All 9 tc/netem emulation parameters are configurable per-path, per-run. Emulation must be deterministic when a fixed seed is supplied.',
+                body: 'Each capability is either a real measurement of this host, a controlled benchmark over modelled conditions, or explicitly unsupported. Nothing is presented as a real measurement when it is not.',
                 table: {
-                    columns: ['Condition', 'tc/netem Parameter', 'Notes'],
+                    columns: ['Capability', 'What it does', 'Provenance'],
                     rows: [
-                        ['Delay', 'delay TIME [JITTER [CORRELATION]]', 'Milliseconds; supports multiple distributions'],
-                        ['Loss', 'loss random PERCENT [CORRELATION]', 'Gilbert-Elliot model for correlated loss'],
-                        ['Duplication', 'duplicate PERCENT', 'Stress testing'],
-                        ['Corruption', 'corrupt PERCENT', 'Simulates bit errors'],
-                        ['Reordering', 'reorder PERCENT [gap DISTANCE]', 'Out-of-order delivery'],
-                        ['Rate Limit', 'rate RATE', 'Token bucket rate limiting'],
-                        ['Queue Depth', 'limit COUNT', 'Max packets in qdisc queue'],
-                        ['Seed', 'seed VALUE', 'Deterministic emulation'],
+                        ['Ping', 'Latency (min/avg/max/stddev) and packet loss, per probe', 'Real — Windows ping'],
+                        ['Route trace', 'Hop-by-hop path to a target', 'Real — Windows tracert'],
+                        ['DNS', 'Name resolution and how long it took', 'Real — OS resolver'],
+                        ['Adapters / IP', 'Link state, IPv4 configuration, gateway, DNS servers', 'Real — PowerShell Get-Net*'],
+                        ['Benchmark runner', 'Repeatable measurements, history, comparison, CSV/JSON export', 'Real measurement'],
+                        ['Fault simulator', 'Unreachable, jitter, loss, timeout, intermittent, transitions', 'Simulated — seeded'],
+                        ['Hysteresis sweep', 'Ratio 1.0–3.0 stability/recovery trade-off curve', 'Controlled'],
+                        ['Scheduler comparison', 'Scheduler variants under identical declared paths', 'Controlled'],
+                        ['tc/netem shaping', 'Kernel-level delay/jitter/loss/reorder', 'Unsupported on Windows'],
                     ],
                 },
                 bullets: [
-                    'Fault injection: kill node, drop link, delay link, rate-limit link',
-                    'Hysteresis sweep harness: run recovery scenario with ratio ∈ {1.0 … 3.0}',
-                    'Scheduler comparison harness: run same transfer with each scheduler variant',
-                    'Emulation config verified and hashed before each run',
-                    'tc/netem requires CAP_NET_ADMIN — documented setup for Linux / WSL2',
+                    'Subprocesses are bounded, arguments are passed as arrays (never a shell string), and inputs are validated against injection',
+                    'Real probes run off the event loop, so a slow command never blocks the API',
+                    'A ping with zero replies is a valid result, not an error; the response says "unreachable"',
+                    'No interface, route or firewall rule is modified — no privileged action is required or taken',
+                    'Configuration is normalised and hashed (SHA-256) into every report with the software version and seed',
                 ],
+                videoId: 'gUJLCU58bcA',
+                videoTitle: 'Network Diagnostics',
             },
             {
                 id: 'acceptance',
                 heading: 'Acceptance Criteria',
                 bullets: [
-                    'Repeatable scenarios with same configuration and seed',
-                    'Reports include units, workload, repetition count, environment, and limitations',
-                    'Benchmarking works independently without other feature modules',
-                    'Hysteresis sweep harness produces documented trade-off curve',
-                    'Scheduler comparison harness produces complete comparison table',
-                    'Measured values within ≤ 10% of configured tc/netem values',
+                    'Runs on Windows 10/11 without Ubuntu, WSL2, kernel modules, tc, netem or admin rights',
+                    'Reports include units, target, repetition count, environment, config hash and limitations',
+                    'Real measurements, controlled benchmarks and simulated faults are visually and textually distinguished',
+                    'Feature A can bracket an experiment with a real before/after baseline and compare them',
+                    'Feature B transfers can be paired with a diagnostics run, shown side by side and labelled',
+                    'Hysteresis sweep covers ratios 1.0–3.0 and provides a trade-off curve plus a naive baseline',
+                    'Unavailable commands, DNS failures, unreachable targets, permission errors and timeouts degrade visibly rather than silently',
                 ],
             },
             {
                 id: 'research',
                 heading: 'Research Anchor',
-                body: 'tc/netem is the standard Linux facility for protocol testing under emulated network conditions, used extensively in published TCP and routing research.',
+                body: 'The replacement rests on Microsoft\'s documented Windows network commands and on the published research the original emulation supported. tc/netem is named as the Linux-only facility it was, not as something this build uses.',
             },
         ],
         researchAnchor: [
-            'Linux tc-netem(8) man page — Standard network emulation facility',
-            'TCP BBR / VM research — Emulation in protocol performance testing',
-            'GitHub projects — Docker bridge tc/netem on veth interfaces',
+            'Microsoft Learn — ping command: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/ping',
+            'Microsoft Learn — tracert command: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/tracert',
+            'Microsoft Learn — Get-NetAdapter: https://learn.microsoft.com/en-us/powershell/module/netadapter/get-netadapter',
+            'Microsoft Learn — Get-NetIPConfiguration: https://learn.microsoft.com/en-us/powershell/module/nettcpip/get-netipconfiguration',
+            'Linux tc-netem(8): https://man7.org/linux/man-pages/man8/tc-netem.8.html',
+            'Maltz thesis (CMU) §7.6.1 — Route hysteresis (the apparatus serves Feature A)',
+            'Verma et al., J. Network and Systems Management, 2022 — DB-CMT (the apparatus serves Feature B)',
+        ],
+    },
+    {
+        id: 'feature-e',
+        index: 'E',
+        title: 'Network Experiment Lab',
+        tagline: 'One guided journey: routing, TCP congestion, traffic shaping, TCP vs UDP, and a combined failure-recovery experiment.',
+        heroSub: 'Five connected experiments you run in order. Build a network and compute its routes with Dijkstra, watch TCP react to loss, compare traffic shapers, compare TCP with UDP, then combine detection, rerouting and transfer in one run. Every result says whether it is a real network operation or a simulation.',
+        watermark: 'E',
+        heroVideoUrl: VIDEO_URLS.cinematic,
+        lab: { to: '/features/routing/playground', label: 'Start the guided journey' },
+        highlights: [
+            'Dijkstra with a step-through iteration table and a final routing table (next hop, cost, full path)',
+            'TCP Reno congestion window, token vs leaky bucket shaping, and TCP vs UDP (real loopback sockets or simulation)',
+            'Detect → reroute → transfer: the hysteresis detector, Dijkstra and the TCP model in one experiment',
+        ],
+        sections: [
+            {
+                id: 'journey',
+                heading: 'The journey',
+                body: 'Each step has its own page with a short run guide at the top, and a Next button to the following step. Steps can be run on their own or in order.',
+                table: {
+                    columns: ['Step', 'Experiment', 'Execution mode', 'What it shows'],
+                    rows: [
+                        ['1', 'Dijkstra shortest-path routing', 'Simulation', 'Per-iteration distances and predecessors, the final routing table, the effect of a weight change or a disabled link'],
+                        ['2', 'TCP congestion control', 'Simulation', 'cwnd, ssthresh and goodput of one TCP Reno flow under chosen RTT, loss, buffer and bandwidth'],
+                        ['3', 'QoS and traffic shaping', 'Simulation', 'Token bucket vs leaky bucket on the same workload: delay, throughput, queue length, drops'],
+                        ['4', 'TCP vs UDP', 'Mixed', 'Real loopback sockets on this machine, or a separately labelled simulation of a lossy path'],
+                        ['5', 'Detect, reroute, transfer', 'Simulation', 'Hysteresis detector → Dijkstra recalculation → simulated transfer, before and after a failure'],
+                    ],
+                },
+            },
+            {
+                id: 'purpose',
+                heading: 'Purpose',
+                body: 'Make link-state route selection, congestion control, traffic shaping and transport trade-offs inspectable, and show how a failure detected at one layer changes behaviour at another.',
+            },
+            {
+                id: 'specification',
+                heading: 'Specification',
+                bullets: [
+                    'Dijkstra: costs are unitless and greater than 0; ties go to the lowest node name; a disabled link is ignored as if absent. The routing table is derived from the result — Dijkstra is an algorithm, not a routing protocol, and no real routing table is changed',
+                    'TCP: Reno (RFC 5681) with the RFC 6298 retransmission timer; one flow, one drop-tail bottleneck; no other variant is mixed in',
+                    'Shaping: fixed packet size, byte-metered buckets, same tail-drop queue limit for both shapers, seeded workloads',
+                    'TCP vs UDP: real mode times sockets on 127.0.0.1 only and injects no loss or delay; simulated mode models them',
+                    'Integration: heartbeats are a generated sequence, not live probes; a route is a path through a graph, not a physically independent network path',
+                ],
+                videoId: 'u0X5I19Kw40',
+                videoTitle: 'Network Experiment Lab',
+            },
+            {
+                id: 'limits',
+                heading: 'Limitations',
+                body: 'The models are educational and do not predict real-network performance. Distance-vector routing is not implemented. The multipath file-transfer engine (Feature C) and the live recovery overlay (Feature A) are separate systems and are not run inside the integration experiment.',
+            },
+        ],
+        researchAnchor: [
+            'E. W. Dijkstra, "A note on two problems in connexion with graphs", Numerische Mathematik 1, 1959',
+            'J. Y. Yen, "Finding the k shortest loopless paths in a network", Management Science 17, 1971',
+            'RFC 5681 — TCP Congestion Control: https://www.rfc-editor.org/rfc/rfc5681',
+            'RFC 6298 — Computing TCP\'s Retransmission Timer: https://www.rfc-editor.org/rfc/rfc6298',
+            'RFC 9293 — Transmission Control Protocol: https://www.rfc-editor.org/rfc/rfc9293',
+            'RFC 768 — User Datagram Protocol: https://www.rfc-editor.org/rfc/rfc768',
+            'A. S. Tanenbaum & D. J. Wetherall, Computer Networks — traffic shaping (leaky and token bucket)',
         ],
     },
 ];
