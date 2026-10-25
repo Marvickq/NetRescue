@@ -14,9 +14,11 @@ from netrescue.core.models import Base
 
 from apps.api.routers import (
     benchmarks,
+    diagnostics,
     emulation,
     experiments,
     lab,
+    labs,
     metrics,
     nodes,
     playground,
@@ -114,7 +116,9 @@ app = FastAPI(
     version="1.0.0",
     description=(
         "Control plane for NetRescue — self-healing recovery (Feature A), "
-        "multipath transfer (Feature C), and network emulation (Feature D)."
+        "multipath transfer (Feature B), Windows network diagnostics & "
+        "benchmarking (Feature 3), and the networking labs (routing, TCP congestion, "
+        "traffic shaping, TCP vs UDP)."
     ),
     lifespan=lifespan,
     docs_url="/docs",
@@ -162,6 +166,8 @@ app.include_router(lab.router)
 app.include_router(playground.router)
 app.include_router(xfer.router)
 app.include_router(traffic.router)
+app.include_router(diagnostics.router)
+app.include_router(labs.router)
 
 
 # ---------------------------------------------------------------------------
