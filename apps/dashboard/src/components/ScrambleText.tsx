@@ -3,11 +3,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 interface ScrambleTextProps {
     text: string;
     className?: string;
+    /** When given, the parent drives the scramble; otherwise the text reacts to its own hover. */
+    isHovered?: boolean;
 }
 
-const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&';
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~|}{[]:;?><';
 
-export function ScrambleText({ text, className = '' }: ScrambleTextProps) {
+export function ScrambleText({ text, className = '', isHovered }: ScrambleTextProps) {
     const [display, setDisplay] = useState(text);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -30,7 +32,7 @@ export function ScrambleText({ text, className = '' }: ScrambleTextProps) {
                 if (intervalRef.current) clearInterval(intervalRef.current);
                 setDisplay(text);
             }
-        }, 30);
+        }, 25);
     }, [text]);
 
     const reset = useCallback(() => {
@@ -38,13 +40,19 @@ export function ScrambleText({ text, className = '' }: ScrambleTextProps) {
         setDisplay(text);
     }, [text]);
 
+    useEffect(() => {
+        if (isHovered === undefined) return;
+        if (isHovered) scramble(); else reset();
+    }, [isHovered, scramble, reset]);
+
     useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
+    const controlled = isHovered !== undefined;
     return (
         <span
             className={className}
-            onMouseEnter={scramble}
-            onMouseLeave={reset}
+            onMouseEnter={controlled ? undefined : scramble}
+            onMouseLeave={controlled ? undefined : reset}
             style={{ cursor: 'default' }}
         >
             {display}
@@ -55,18 +63,20 @@ export function ScrambleText({ text, className = '' }: ScrambleTextProps) {
 interface ScrambleInProps {
     text: string;
     className?: string;
+    /** Milliseconds to wait after `triggered` before the reveal starts. */
     delay?: number;
+    triggered?: boolean;
 }
 
-export function ScrambleIn({ text, className = '', delay = 0 }: ScrambleInProps) {
+export function ScrambleIn({ text, className = '', delay = 0, triggered = true }: ScrambleInProps) {
     const [display, setDisplay] = useState<string>('');
     const [started, setStarted] = useState(false);
-    const ref = useRef<HTMLSpanElement>(null);
 
     useEffect(() => {
+        if (!triggered) { setStarted(false); return; }
         const timer = setTimeout(() => setStarted(true), delay);
         return () => clearTimeout(timer);
-    }, [delay]);
+    }, [delay, triggered]);
 
     useEffect(() => {
         if (!started) return;
@@ -79,7 +89,7 @@ export function ScrambleIn({ text, className = '', delay = 0 }: ScrambleInProps)
                         if (char === ' ') return ' ';
                         if (i < iteration) return text[i];
                         if (i < iteration + 3) return CHARS[Math.floor(Math.random() * CHARS.length)];
-                        return '\u00A0';
+                        return ' ';
                     })
                     .join('')
             );
@@ -93,8 +103,8 @@ export function ScrambleIn({ text, className = '', delay = 0 }: ScrambleInProps)
     }, [started, text]);
 
     return (
-        <span ref={ref} className={className}>
-            {started ? display : '\u00A0'.repeat(text.length)}
+        <span className={className}>
+            {started ? display : ' '}
         </span>
     );
 }

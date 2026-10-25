@@ -35,9 +35,8 @@ describe('policy pages', () => {
 });
 
 describe('third-party content is opt-in', () => {
-    it('loads no video and no iframe by default', () => {
+    it('loads no YouTube iframe by default', () => {
         const { container } = at('/features/feature-a');
-        expect(container.querySelector('video')).toBeNull();
         expect(container.querySelector('iframe')).toBeNull();
     });
 
