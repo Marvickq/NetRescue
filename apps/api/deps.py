@@ -143,6 +143,33 @@ def require_permission(permission: Permission, action: str = ""):
     return Annotated[Principal, Depends(_dep)]
 
 
+def require_host_probe(principal: PrincipalDep, authorizer: AuthorizerDep) -> Principal:
+    """
+    Gate for probes that run on the API host's own network (ping, traceroute, DNS,
+    adapter inspection).
+
+    Locally that host is the user's machine, so a read-only caller may use them.
+    On a public demo the host is the hosting provider's server: a probe there
+    measures the wrong network and would let anonymous visitors aim ICMP, traceroute
+    and DNS lookups at arbitrary targets from it. So in public-demo mode they need the
+    operator role, which only a caller holding API_AUTH_TOKEN can have on these routes.
+    """
+    permission = Permission.WRITE if settings.public_demo else Permission.READ
+    try:
+        authorizer.require(principal, permission, "host-probe")
+    except AuthorizationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"{exc}. Real network probes run on the machine hosting the API, not on "
+                "your device; run NetRescue locally to measure your own network."
+            ),
+        ) from exc
+    return principal
+
+
+RequireHostProbe = Annotated[Principal, Depends(require_host_probe)]
+
 RequireOperator = require_permission(Permission.WRITE, "control-plane-write")
 RequireEmulation = require_permission(Permission.APPLY_EMULATION, "apply-emulation")
 RequireRead = require_permission(Permission.READ, "read")

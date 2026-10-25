@@ -211,3 +211,77 @@ def test_hosted_host_operations_stay_denied_in_demo_mode(monkeypatch):
     assert c.post("/api/diagnostics/run", headers=BROWSER, json={}).status_code == 403
     assert c.delete("/api/diagnostics/runs", headers=BROWSER).status_code == 403
     assert c.post("/api/lab/topology", headers=BROWSER, json={}).status_code == 403
+
+
+# -- hosted diagnostics: real probes gated, simulations bounded ---------------
+
+DIAG = {"X-NetRescue-Role": "operator", "X-NetRescue-Principal": "diagnostics-lab"}
+HOST_PROBES = [
+    ("GET", "/api/diagnostics/network", None),
+    ("POST", "/api/diagnostics/ping", {"target": "127.0.0.1"}),
+    ("POST", "/api/diagnostics/traceroute", {"target": "127.0.0.1"}),
+    ("POST", "/api/diagnostics/dns", {"name": "example.com"}),
+]
+
+
+@pytest.mark.parametrize("method,path,body", HOST_PROBES)
+def test_demo_blocks_anonymous_host_probes(monkeypatch, method, path, body):
+    """On a public demo these run on the hosting server, so a tokenless caller (even
+    read-only) is refused before any probe starts, with the reason in the message."""
+    c = _app_client(monkeypatch, demo=True)
+    for headers in (DIAG, {}):
+        r = c.request(method, path, headers=headers, json=body)
+        assert r.status_code == 403, (path, headers)
+        assert "your device" in r.json()["detail"]
+
+
+def test_token_holder_can_reach_host_probes_in_demo(monkeypatch):
+    c = _app_client(monkeypatch, demo=True)
+    h = {**DIAG, "X-NetRescue-Token": "server-side-secret"}
+    # An invalid target is rejected by input validation: it got past authorisation.
+    r = c.post("/api/diagnostics/ping", headers=h, json={"target": "bad target; rm -rf /"})
+    assert r.status_code != 403 and r.status_code < 500
+
+
+def test_local_use_keeps_read_access_to_probes(monkeypatch):
+    """Without public-demo mode (a local install) the probes stay available to read-only callers."""
+    from apps.api import deps
+
+    monkeypatch.setattr(deps.settings, "api_auth_token", "")
+    monkeypatch.setattr(deps.settings, "public_demo", False)
+    from apps.api.main import app
+
+    r = TestClient(app).post("/api/diagnostics/ping", json={"target": "bad target; x"})
+    assert r.status_code != 403
+
+
+@pytest.mark.parametrize("body", [
+    {"payload_bytes": 1_000_000},
+    {"repetitions": 20},
+    {"paths": [{"path_id": f"p{i}"} for i in range(9)]},
+])
+def test_demo_bounds_scheduler_comparison(monkeypatch, body):
+    c = _app_client(monkeypatch, demo=True)
+    r = c.post("/api/diagnostics/scheduler-comparison", headers=DIAG, json=body)
+    assert r.status_code == 422
+    assert "public demo" in r.json()["detail"]
+
+
+def test_demo_allows_only_one_scheduler_comparison_at_a_time(monkeypatch):
+    from apps.api.routers import diagnostics as diag
+
+    class Busy:
+        def locked(self):
+            return True
+
+    monkeypatch.setattr(diag, "_scheduler_comparison_lock", Busy())
+    c = _app_client(monkeypatch, demo=True)
+    r = c.post("/api/diagnostics/scheduler-comparison", headers=DIAG,
+               json={"payload_bytes": 8192, "chunk_size_bytes": 4096, "repetitions": 5})
+    assert r.status_code == 429
+
+
+def test_demo_simulations_still_work(monkeypatch):
+    c = _app_client(monkeypatch, demo=True)
+    assert c.post("/api/diagnostics/faults", headers=DIAG, json={"scenario": "packet_loss"}).status_code == 201
+    assert c.post("/api/diagnostics/hysteresis-sweep", headers=DIAG, json={}).status_code == 201

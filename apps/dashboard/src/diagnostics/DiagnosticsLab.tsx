@@ -19,6 +19,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import LocalOnlyNote from '../components/LocalOnlyNote';
 import { IS_REMOTE_API } from '../api/client';
+
+/** Why the real-probe buttons are disabled against a hosted API. */
+export const LIVE_PROBE_BLOCKED =
+    'Real probes would run on the hosting server, not on your device. Run NetRescue locally to use this.';
 import {
     diagnosticsApi,
     downloadText,
@@ -465,7 +469,8 @@ export default function DiagnosticsLab({ run, loading, error, onRerun }: Diagnos
                 right={
                     <button
                         onClick={onRerun}
-                        disabled={loading}
+                        disabled={loading || IS_REMOTE_API}
+                        title={IS_REMOTE_API ? LIVE_PROBE_BLOCKED : undefined}
                         className="h-9 px-4 bg-white text-black rounded-full text-[13px] font-medium disabled:opacity-50 hover:bg-white/90 transition-colors"
                     >
                         {loading ? 'Running…' : 'Run Diagnostics'}
@@ -519,7 +524,8 @@ export default function DiagnosticsLab({ run, loading, error, onRerun }: Diagnos
                         </label>
                         <button
                             onClick={resolveDns}
-                            disabled={dnsBusy || !dnsName.trim()}
+                            disabled={dnsBusy || !dnsName.trim() || IS_REMOTE_API}
+                            title={IS_REMOTE_API ? LIVE_PROBE_BLOCKED : undefined}
                             className="h-9 px-4 border border-white/20 rounded-full text-[13px] text-white/80 hover:bg-white/5 disabled:opacity-50"
                         >
                             {dnsBusy ? 'Resolving…' : 'Resolve'}
@@ -624,7 +630,8 @@ export default function DiagnosticsLab({ run, loading, error, onRerun }: Diagnos
                         </label>
                         <button
                             onClick={runBenchmark}
-                            disabled={benchBusy}
+                            disabled={benchBusy || IS_REMOTE_API}
+                            title={IS_REMOTE_API ? LIVE_PROBE_BLOCKED : undefined}
                             className="h-9 px-4 border border-white/20 rounded-full text-[13px] text-white/80 hover:bg-white/5 disabled:opacity-50"
                         >
                             {benchBusy ? 'Measuring…' : 'Run benchmark'}

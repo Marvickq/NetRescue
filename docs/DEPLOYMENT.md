@@ -149,3 +149,34 @@ delete, `tc/netem`, and the recovery lab return 403 by design** and the UI label
   console should show no CORS errors. A 403 on a write is the case described above.
 - **Interactive API docs:** `https://netrescue.onrender.com/docs` can send the same requests from the
   browser (add the `X-NetRescue-Role: operator` header via "Try it out" to mimic the site).
+
+## Real diagnostics: run NetRescue locally
+
+On the public site, **Run Diagnostics, Run benchmark, DNS resolve, ping, traceroute and adapter
+inspection are disabled**. They measure the machine the API runs on, which on Render is a hosting
+container, not your device, and letting anonymous visitors aim probes from it would make the server a
+scanning relay. With `PUBLIC_DEMO=true` those routes (and the real TCP-vs-UDP experiment) return 403 unless
+the caller holds `API_AUTH_TOKEN`. They are labelled *real* in the UI only when they ran on your own machine.
+
+What stays public, and is labelled *simulated*: seeded fault scenarios, the hysteresis sweep and the
+scheduler comparison. The scheduler comparison replays modelled delays in real time, so on the public demo it
+is limited to 64 kB, 10 repetitions, 8 paths and one run at a time (larger values return 422; a second
+concurrent run returns 429).
+
+To measure your own network (Windows 10/11, needs Python 3.11+ and Node 20+):
+
+```
+# terminal 1 - API, loopback only
+py -m venv .venv
+.venvScriptsactivate
+pip install -r requirements.txt
+uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
+
+# terminal 2 - dashboard (no VITE_API_BASE_URL needed: it defaults to http://127.0.0.1:8000)
+cd appsdashboard
+npm ci
+npm run dev
+```
+
+Open http://localhost:3000, go to Network Diagnostics and press **Run Diagnostics**. Leave `PUBLIC_DEMO`
+unset locally. Results then come from your machine's own `ping`, `tracert`, DNS resolver and adapters.

@@ -23,7 +23,8 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, ArrowLeft, Play } from 'lucide-react';
 import { diagnosticsApi, ApiError } from '../diagnostics/api';
 import type { DiagnosticsRun } from '../diagnostics/types';
-import DiagnosticsLab from '../diagnostics/DiagnosticsLab';
+import DiagnosticsLab, { LIVE_PROBE_BLOCKED } from '../diagnostics/DiagnosticsLab';
+import { IS_REMOTE_API } from '../api/client';
 
 export default function DiagnosticsPlaygroundPage() {
     const [run, setRun] = useState<DiagnosticsRun | null>(null);
@@ -106,8 +107,8 @@ function LabHeader({
                 <LastRunPill run={run} loading={loading} />
                 <button
                     onClick={onRun}
-                    disabled={loading}
-                    title="Run real probes against this machine's network"
+                    disabled={loading || IS_REMOTE_API}
+                    title={IS_REMOTE_API ? LIVE_PROBE_BLOCKED : "Run real probes against this machine's network"}
                     className="h-9 px-4 rounded-full bg-white text-black text-[13px] font-medium hover:bg-white/90 disabled:opacity-30 transition-colors flex items-center gap-2"
                 >
                     <Play size={12} /> {loading ? 'Running…' : 'Run Diagnostics'}

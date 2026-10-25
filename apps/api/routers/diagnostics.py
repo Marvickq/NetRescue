@@ -39,12 +39,14 @@ reported as partial rather than dressed up as a success.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
-from apps.api.deps import OptionalDbSession, RequireOperator, RequireRead
+from netrescue.core.config import settings
+from apps.api.deps import OptionalDbSession, RequireHostProbe, RequireOperator, RequireRead
 from netrescue.diagnostics import (
     SCENARIO_NAMES,
     BenchmarkEngine,
@@ -201,6 +203,29 @@ class SchedulerComparisonRequest(BaseModel):
     seed: int | None = 1337
 
 
+# Public-demo bounds. The comparison runs modelled delays in real time (about
+# 0.4 s per kB of payload per repetition), so these keep one run near a minute,
+# inside a hosting proxy's ~100 s limit.
+DEMO_MAX_PAYLOAD_BYTES = 64_000
+DEMO_MAX_REPETITIONS = 10
+DEMO_MAX_PATHS = 8
+_scheduler_comparison_lock = asyncio.Lock()
+
+
+def _enforce_demo_limits(**limits: tuple[int, int]) -> None:
+    if not settings.public_demo:
+        return
+    for name, (value, maximum) in limits.items():
+        if value > maximum:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"{name} is limited to {maximum} on the public demo (requested {value}). "
+                    "Run NetRescue locally for larger runs."
+                ),
+            )
+
+
 class CompareRequest(BaseModel):
     run_ids: list[str] = Field(..., min_length=2, max_length=10)
 
@@ -265,7 +290,7 @@ def diagnostics_scenarios(principal: RequireRead):
 
 
 @router.get("/network")
-def diagnostics_network(principal: RequireRead):
+def diagnostics_network(principal: RequireHostProbe):
     """Real adapter and IP configuration for the Live Network Status panel."""
     return execution.attach(dict(network_status()), "diag.network")
 
@@ -276,7 +301,7 @@ def diagnostics_network(principal: RequireRead):
 
 
 @router.post("/ping")
-async def diagnostics_ping(body: PingRequest, principal: RequireRead):
+async def diagnostics_ping(body: PingRequest, principal: RequireHostProbe):
     """Ping an IPv4 address or hostname and return real latency/loss statistics."""
     import asyncio
 
@@ -291,7 +316,7 @@ async def diagnostics_ping(body: PingRequest, principal: RequireRead):
 
 
 @router.post("/traceroute")
-async def diagnostics_traceroute(body: TraceRequest, principal: RequireRead):
+async def diagnostics_traceroute(body: TraceRequest, principal: RequireHostProbe):
     """Trace the route to a target and return the real hops."""
     import asyncio
 
@@ -305,7 +330,7 @@ async def diagnostics_traceroute(body: TraceRequest, principal: RequireRead):
 
 
 @router.post("/dns")
-async def diagnostics_dns(body: DnsRequest, principal: RequireRead):
+async def diagnostics_dns(body: DnsRequest, principal: RequireHostProbe):
     """Resolve a name and report the addresses and how long resolution took."""
     import asyncio
 
@@ -452,6 +477,26 @@ async def diagnostics_scheduler_comparison(body: SchedulerComparisonRequest, pri
     Paths are logical, not independent physical interfaces. The result is a
     controlled benchmark and is labelled as such.
     """
+    _enforce_demo_limits(
+        payload_bytes=(body.payload_bytes, DEMO_MAX_PAYLOAD_BYTES),
+        repetitions=(body.repetitions, DEMO_MAX_REPETITIONS),
+        paths=(len(body.paths or []), DEMO_MAX_PATHS),
+    )
+    if settings.public_demo:
+        # The comparison replays modelled delays in real time, so one run holds a
+        # worker for tens of seconds. Allow one at a time rather than let anonymous
+        # callers stack them.
+        if _scheduler_comparison_lock.locked():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="A scheduler comparison is already running on this server. Try again shortly.",
+            )
+        async with _scheduler_comparison_lock:
+            return await _run_scheduler_comparison(body)
+    return await _run_scheduler_comparison(body)
+
+
+async def _run_scheduler_comparison(body: SchedulerComparisonRequest):
     try:
         result = await scheduler_comparison(
             paths=[p.model_dump() for p in body.paths] if body.paths else None,
