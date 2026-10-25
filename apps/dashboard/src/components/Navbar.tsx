@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Apple } from 'lucide-react';
+import { LayoutDashboard } from 'lucide-react';
 import NetRescueLogo from './NetRescueLogo';
 import SquashHamburger from './SquashHamburger';
 import { ScrambleText } from './ScrambleText';
@@ -43,20 +43,22 @@ function NavLink({ label, to, hash, onClick, className }: {
         : <Link to={to} onClick={onClick} className={className} {...hover}>{text}</Link>;
 }
 
-function DownloadButton({ mobile = false }: { mobile?: boolean }) {
+const MotionLink = motion.create(Link);
+
+function DashboardButton({ mobile = false }: { mobile?: boolean }) {
     const [hovered, setHovered] = useState(false);
     return (
-        <motion.a
-            href="#"
+        <MotionLink
+            to="/features"
             className={`${mobile ? 'h-9 px-3.5 text-[13px]' : 'h-12 px-6 text-[14px]'} bg-white text-black rounded-full flex items-center gap-2 font-medium`}
             whileHover={{ scale: 1.03, backgroundColor: '#e2e2e6' }}
             whileTap={{ scale: 0.97 }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
-            <Apple size={mobile ? 14 : 16} aria-hidden="true" />
-            <ScrambleText text="Download" isHovered={hovered} />
-        </motion.a>
+            <LayoutDashboard size={mobile ? 14 : 16} aria-hidden="true" />
+            <ScrambleText text="Dashboard" isHovered={hovered} />
+        </MotionLink>
     );
 }
 
@@ -127,7 +129,7 @@ export default function Navbar() {
                 </motion.div>
             </div>
 
-            <div className="hidden sm:block"><DownloadButton /></div>
+            <div className="hidden sm:block"><DashboardButton /></div>
 
             {/* Mobile */}
             <div className="sm:hidden flex items-center gap-2 flex-1 min-w-0">
@@ -175,7 +177,7 @@ export default function Navbar() {
                     </AnimatePresence>
                 </motion.div>
             </div>
-            {!menuOpen && <div className="sm:hidden flex-shrink-0"><DownloadButton mobile /></div>}
+            {!menuOpen && <div className="sm:hidden flex-shrink-0"><DashboardButton mobile /></div>}
         </motion.nav>
     );
 }
