@@ -4,11 +4,6 @@ import { ConsentKey, useConsent } from './ConsentContext';
 
 const OPTIONS: { key: ConsentKey; title: string; body: string }[] = [
     {
-        key: 'backgroundVideo',
-        title: 'Decorative background videos',
-        body: 'Loads looping videos from a CloudFront (Amazon) host. That host sees your IP address and browser details when the videos are requested.',
-    },
-    {
         key: 'youtube',
         title: 'YouTube explainer videos',
         body: 'Loads embedded videos from youtube-nocookie.com (Google). Google sees your IP address and browser details once a video loads.',

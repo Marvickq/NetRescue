@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-import { useConsent } from '../consent/ConsentContext';
 
 interface VideoBackgroundProps {
     src: string;
@@ -15,10 +14,8 @@ export default function VideoBackground({
     scrub = false,
 }: VideoBackgroundProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const { consent } = useConsent();
     const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    // Nothing is requested from the video host until the visitor opts in.
-    const enabled = consent.backgroundVideo && !reduceMotion;
+    const enabled = !reduceMotion;
 
     useEffect(() => {
         if (!scrub || !enabled) return;

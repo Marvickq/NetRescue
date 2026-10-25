@@ -155,9 +155,9 @@ export function CookiesPage() {
             <p>This site sets no cookies of its own and uses no analytics, advertising or tracking technology.</p>
             <H>Browser storage</H>
             <p>One local-storage entry, <code>netrescue.consent.v1</code>, remembers your choices below. It is strictly functional and stays on your device.</p>
-            <H>Third-party content (off until you enable it)</H>
+            <H>Third-party content</H>
             <UL>
-                <li><strong>Background videos</strong> from a CloudFront-hosted address. Currently {consent.backgroundVideo ? 'enabled' : 'off'}.</li>
+                <li><strong>Background videos</strong> are loaded from a CloudFront-hosted address (Amazon), which sees your IP address and browser details when they are requested. They are skipped if your system asks for reduced motion.</li>
                 <li><strong>YouTube explainer videos</strong> via youtube-nocookie.com. Currently {consent.youtube ? 'enabled' : 'off'}. YouTube may still
                     store data on your device or read it once the player loads; see Google&apos;s policies.</li>
                 <li><strong>Reference links</strong> to RFCs, Microsoft Learn and man pages are ordinary links; nothing loads until you click.</li>
