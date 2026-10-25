@@ -9,17 +9,17 @@ import { features, VIDEO_URLS } from '../data/features';
 const fadeUp = (delay = 0) => ({
     initial: { opacity: 0, y: 25 },
     whileInView: { opacity: 1, y: 0 },
-    transition: { duration: 0.9, delay, ease: [0.215, 0.610, 0.355, 1.000] },
+    transition: { duration: 0.9, delay, ease: [0.215, 0.610, 0.355, 1.0] as [number, number, number, number] },
     viewport: { once: true, amount: 0.3 },
 });
 
 const METRICS = [
-    { value: '< 3s', label: 'Failure Detection' },
-    { value: '≥ 50%', label: 'Route Flap Reduction' },
+    { value: '< 3s', label: 'Failure Detection (target)' },
+    { value: '≥ 50%', label: 'Route Flap Reduction (target)' },
     { value: 'SHA-256', label: 'Transfer Integrity' },
-    { value: '≤ 10%', label: 'Emulation Error' },
+    { value: 'Real', label: 'Host Diagnostics' },
     { value: '5×', label: 'Repeatability Runs' },
-    { value: '0', label: 'Cloud Dependencies' },
+    { value: 'Local', label: 'Runs on Your Host' },
 ];
 
 function HeroSection() {
@@ -61,13 +61,13 @@ function HeroSection() {
                             <ScrambleIn text="Networks" delay={500} />
                         </h1>
                         <motion.p {...fadeUp(0.2)} className="max-w-sm text-[13px] sm:text-[15px] text-white/60 mt-4 leading-relaxed">
-                            A software-defined overlay that recovers from node failure, schedules multipath transfers with research-proven algorithms, and emulates real network conditions using the Linux kernel.
+                            A software-defined overlay that recovers from node failure and schedules multipath transfers with algorithms drawn from published networking research.
                         </motion.p>
                     </div>
-                    <h1 className="font-light leading-[0.95] tracking-[-0.03em] md:text-right" style={{ fontSize: 'clamp(40px, 10vw, 100px)' }}>
+                    <div aria-hidden="true" className="font-light leading-[0.95] tracking-[-0.03em] md:text-right" style={{ fontSize: 'clamp(40px, 10vw, 100px)' }}>
                         <ScrambleIn text="One" delay={700} /><br />
                         <ScrambleIn text="System" delay={1000} />
-                    </h1>
+                    </div>
                 </div>
             </motion.div>
         </section>
@@ -87,7 +87,7 @@ function CinematicSection() {
                 style={{ background: 'linear-gradient(to bottom, #010103, transparent)' }} />
             <motion.div className="relative z-20 max-w-5xl px-6 sm:px-12 text-center" style={{ y: yValue, opacity, perspective: 400 }}>
                 <p className="text-[22px] sm:text-[30px] md:text-[36px] lg:text-[42px] leading-[1.35] tracking-[-0.02em] select-none font-light">
-                    A network resilience platform built on peer-reviewed research. NetRescue translates routing instability into measurable recovery. Every heartbeat, every chunk, every failure becomes observable. The system continuously rebuilds forwarding state as topology changes. Biological noise is replaced by kernel-level truth.
+                    A network resilience lab that implements ideas from published networking research. NetRescue translates routing instability into measurable recovery. Every heartbeat, every chunk, every failure becomes observable. The system continuously rebuilds forwarding state as topology changes.
                 </p>
             </motion.div>
         </section>
@@ -100,7 +100,7 @@ function MetricsSection() {
             <VideoBackground src={VIDEO_URLS.metrics} overlay="bg-black/60" />
             <motion.p className="relative z-10 text-white/40 text-[13px] sm:text-[14px] tracking-[0.2em] uppercase mb-20 text-center"
                 initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} transition={{ duration: 1.2 }} viewport={{ once: true, amount: 0.3 }}>
-                Measured Outcomes
+                Design Targets (verify in the labs)
             </motion.p>
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-16 md:gap-8 max-w-5xl px-8 w-full">
                 {METRICS.map((m, i) => (
@@ -132,7 +132,7 @@ function FeaturesGrid() {
                         Three<br />Features
                     </motion.h2>
                     <motion.p {...fadeUp(0.1)} className="text-white/50 max-w-xs md:text-right md:pt-2 text-[14px] leading-relaxed">
-                        Each feature is independently demonstrable, backed by peer-reviewed algorithms, and validated under Linux tc/netem emulation. Click any card to open its full specification.
+                        Each feature is independently demonstrable, based on published algorithms, and checked with real host measurements plus a deterministic simulator. Click any card to open its full specification.
                     </motion.p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6">
@@ -149,7 +149,7 @@ function FeaturesGrid() {
                             >
                                 <h3 className="text-[14px] sm:text-[16px] mb-2">{f.title}</h3>
                                 <p className="text-white/40 text-[12px] sm:text-[14px] leading-relaxed">{f.tagline}</p>
-                                <div className="mt-3 text-white/30 group-hover:text-white/60 transition-colors text-[12px]">
+                                <div className="mt-3 text-white/60 group-hover:text-white/60 transition-colors text-[12px]">
                                     →
                                 </div>
                             </Link>
@@ -165,7 +165,7 @@ function ArchitectureSection() {
     const layers = [
         { label: 'LAYER 01', desc: 'Control Plane' },
         { label: 'LAYER 02', desc: 'Forwarding Plane' },
-        { label: 'LAYER 03', desc: 'Kernel Emulation' },
+        { label: 'LAYER 03', desc: 'Diagnostics & Simulation' },
     ];
 
     return (
@@ -176,16 +176,16 @@ function ArchitectureSection() {
                 </motion.p>
                 <motion.h2 {...fadeUp(0.1)} className="font-light leading-[1.15] tracking-[-0.02em] mb-10"
                     style={{ fontSize: 'clamp(28px, 6vw, 56px)' }}>
-                    Three layers. Zero cloud.
+                    Three layers. Runs locally.
                 </motion.h2>
                 <motion.p {...fadeUp(0.2)} className="text-white/45 text-[15px] sm:text-[17px] leading-relaxed max-w-xl mx-auto mb-12">
-                    Control plane decides. Forwarding plane moves. Emulation lives in the Linux kernel. PostgreSQL persists everything the run produces.
+                    Control plane decides. Forwarding plane moves. Diagnostics and a seeded simulator run on the host, with no kernel facility and no admin rights. PostgreSQL persists everything the run produces.
                 </motion.p>
                 <motion.div className="flex flex-col gap-4 items-center"
                     initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} transition={{ duration: 1.2, delay: 0.4 }} viewport={{ once: true, amount: 0.4 }}>
                     {layers.map(l => (
                         <div key={l.label} className="max-w-md w-full h-[72px] border border-white/10 rounded-lg flex items-center justify-between px-6">
-                            <span className="text-white/30 text-[13px] tracking-[0.2em]">{l.label}</span>
+                            <span className="text-white/60 text-[13px] tracking-[0.2em]">{l.label}</span>
                             <span className="text-white/70 text-[14px]">{l.desc}</span>
                         </div>
                     ))}

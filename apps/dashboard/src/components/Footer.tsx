@@ -1,9 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { useConsent } from '../consent/ConsentContext';
 import NetRescueLogo from './NetRescueLogo';
 import VideoBackground from './VideoBackground';
 import { VIDEO_URLS } from '../data/features';
 
 export default function Footer() {
+    const { openPanel } = useConsent();
     return (
         <footer className="bg-black overflow-hidden flex flex-col md:flex-row min-h-[400px]">
             {/* Left: Video */}
@@ -22,12 +25,18 @@ export default function Footer() {
                         <span className="text-[15px] font-medium text-white/70">NetRescue</span>
                     </div>
                     <p className="text-white/40 max-w-sm text-[14px] leading-relaxed">
-                        The next evolution of resilient overlay networking. Built for those who refuse to trust a black box.
+                        A networking lab for experimenting with failure detection, multipath transfer and diagnostics.
                     </p>
                 </div>
-                <p className="text-white/25 text-[12px] mt-12">
-                    © 2026 NetRescue Labs. All rights reserved.
-                </p>
+                <div className="mt-12">
+                    <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-white/70">
+                        <Link to="/privacy" className="underline underline-offset-2 hover:text-white">Privacy</Link>
+                        <Link to="/terms" className="underline underline-offset-2 hover:text-white">Terms</Link>
+                        <Link to="/cookies" className="underline underline-offset-2 hover:text-white">Cookies &amp; third parties</Link>
+                        <button onClick={openPanel} className="underline underline-offset-2 hover:text-white">Third-party preferences</button>
+                    </nav>
+                    <p className="text-white/60 text-[12px] mt-4">© 2026 NetRescue. Licence not yet declared; see Terms.</p>
+                </div>
             </div>
         </footer>
     );

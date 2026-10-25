@@ -6,6 +6,8 @@ import { ScrambleIn } from '../components/ScrambleText';
 import { features, VIDEO_URLS } from '../data/features';
 import { ArrowUpRight } from 'lucide-react';
 
+const COUNT_WORDS: Record<number, string> = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven' };
+
 export default function FeaturesIndexPage() {
     useEffect(() => { document.title = 'Features — NetRescue'; }, []);
 
@@ -38,10 +40,10 @@ export default function FeaturesIndexPage() {
                         <span>Features</span>
                     </p>
                     <h1 className="font-light leading-[0.95] tracking-[-0.03em]" style={{ fontSize: 'clamp(36px, 8vw, 72px)' }}>
-                        Three<br />Features
+                        {COUNT_WORDS[features.length] ?? features.length}<br />Features
                     </h1>
                     <p className="text-white/50 text-[15px] sm:text-[17px] max-w-xl mx-auto mt-6">
-                        Each independently demonstrable. Each measured.
+                        Each independently demonstrable. Each labelled real or simulated.
                     </p>
                 </div>
             </section>
@@ -58,7 +60,7 @@ export default function FeaturesIndexPage() {
                             viewport={{ once: true, amount: 0.3 }}
                         >
                             {/* Index */}
-                            <div className="text-white/30 text-[14px] tracking-[0.2em]">
+                            <div className="text-white/60 text-[14px] tracking-[0.2em]">
                                 <ScrambleIn text={`0${i + 1}`} delay={200 + i * 200} />
                             </div>
 
@@ -87,6 +89,7 @@ export default function FeaturesIndexPage() {
                     </Link>
                 ))}
             </section>
+
         </motion.main>
     );
 }

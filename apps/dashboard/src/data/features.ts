@@ -53,8 +53,8 @@ export const features: Feature[] = [
         heroVideoUrl: VIDEO_URLS.cinematic,
         highlights: [
             'Three-state hysteresis: HEALTHY → SUSPECT → FAILED with configurable dead band',
-            'Peer-reviewed: based on Maltz thesis (CMU) §7.6.1 and VNT control literature',
-            'Route flap reduction ≥ 50% at hysteresis ratio ≥ 2.0',
+            'Based on Maltz thesis (CMU) §7.6.1 and VNT control literature',
+            'Target: route flap reduction ≥ 50% at hysteresis ratio ≥ 2.0 (check with the lab)',
         ],
         sections: [
             {
@@ -99,7 +99,7 @@ export const features: Feature[] = [
             {
                 id: 'research',
                 heading: 'Research Anchor',
-                body: 'The hysteresis approach is grounded in peer-reviewed research on overlay and ad hoc network routing stability.',
+                body: 'The hysteresis approach is grounded in published research on overlay and ad hoc network routing stability.',
             },
         ],
         researchAnchor: [
@@ -113,7 +113,7 @@ export const features: Feature[] = [
         index: 'C',
         title: 'Multipath Transfer',
         tagline: 'DB-DSP scheduling and RTX-CL retransmission across heterogeneous paths.',
-        heroSub: 'Transfer a file in chunks across multiple logical overlay paths, reconstruct it, verify integrity, and compare research-proven scheduling algorithms against baselines.',
+        heroSub: 'Transfer a file in chunks across multiple logical overlay paths, reconstruct it, verify integrity, and compare published scheduling algorithms against baselines.',
         watermark: 'C',
         heroVideoUrl: VIDEO_URLS.metrics,
         highlights: [
@@ -125,7 +125,7 @@ export const features: Feature[] = [
             {
                 id: 'purpose',
                 heading: 'Purpose',
-                body: 'Transfer a file in chunks across multiple logical overlay paths, reconstruct it, verify integrity, and compare a research-proven delay-based scheduler (DB-DSP) and retransmission policy (RTX-CL) against baselines under identical emulated conditions.',
+                body: 'Transfer a file in chunks across multiple logical overlay paths, reconstruct it, verify integrity, and compare a published delay-based scheduler (DB-DSP) and retransmission policy (RTX-CL) against baselines under identical emulated conditions.',
             },
             {
                 id: 'specification',
@@ -166,7 +166,7 @@ export const features: Feature[] = [
             {
                 id: 'research',
                 heading: 'Research Anchor',
-                body: 'DB-CMT is a peer-reviewed multipath transfer protocol with delay-based scheduling validated in simulation.',
+                body: 'DB-CMT is a published multipath transfer protocol with delay-based scheduling validated in simulation.',
             },
         ],
         researchAnchor: [

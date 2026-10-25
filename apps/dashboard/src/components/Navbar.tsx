@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import NetRescueLogo from './NetRescueLogo';
@@ -6,8 +6,27 @@ import { ScrambleText } from './ScrambleText';
 
 const spring = { stiffness: 350, damping: 28 };
 
+/** Expanded pill covers 40% of the viewport, capped so it stays balanced on ultrawide screens. */
+const OPEN_WIDTH_RATIO = 0.4;
+const OPEN_WIDTH_MAX = 520;
+
+function useOpenMenuWidth() {
+    const [width, setWidth] = useState(OPEN_WIDTH_MAX);
+
+    useEffect(() => {
+        const measure = () =>
+            setWidth(Math.min(Math.round(window.innerWidth * OPEN_WIDTH_RATIO), OPEN_WIDTH_MAX));
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+    }, []);
+
+    return width;
+}
+
 export default function Navbar() {
     const [menuOpen, setMenuOpen] = useState(false);
+    const openWidth = useOpenMenuWidth();
     const navigate = useNavigate();
 
     return (
@@ -29,12 +48,15 @@ export default function Navbar() {
                     className="hidden md:flex items-center overflow-hidden rounded-[14px] h-12"
                     style={{ background: 'var(--pill-bg)', backdropFilter: 'blur(12px)' }}
                     initial={{ width: 48 }}
-                    animate={{ width: menuOpen ? 290 : 48 }}
+                    animate={{ width: menuOpen ? openWidth : 48 }}
                     transition={{ type: 'spring', ...spring }}
                     onMouseEnter={() => setMenuOpen(true)}
                     onMouseLeave={() => setMenuOpen(false)}
+                    onFocus={() => setMenuOpen(true)}
+                    onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setMenuOpen(false); }}
+                    onKeyDown={e => { if (e.key === 'Escape') setMenuOpen(false); }}
                 >
-                    <button className="w-12 h-12 flex items-center justify-center flex-shrink-0" aria-label="Menu">
+                    <button className="w-12 h-12 flex items-center justify-center flex-shrink-0" aria-label="Menu" aria-expanded={menuOpen}>
                         <div className="w-[18px] h-[12px] flex flex-col justify-between">
                             <span className="block w-full h-[1.5px] bg-white transition-transform" />
                             <span className="block w-full h-[1.5px] bg-white transition-opacity" />
@@ -47,7 +69,7 @@ export default function Navbar() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="flex items-center gap-6 px-4 text-[14px] whitespace-nowrap"
+                                className="flex grow shrink-0 items-center justify-center gap-6 px-4 text-[14px] whitespace-nowrap"
                             >
                                 <Link to="/features" className="hover:text-white/70 transition-colors">
                                     <ScrambleText text="Features" />
@@ -69,6 +91,7 @@ export default function Navbar() {
                     style={{ background: 'var(--pill-bg)' }}
                     onClick={() => setMenuOpen(!menuOpen)}
                     aria-label="Menu"
+                    aria-expanded={menuOpen}
                 >
                     <div className="w-[15px] h-[10px] flex flex-col justify-between">
                         <span className="block w-full h-[1.5px] bg-white" />
@@ -77,17 +100,6 @@ export default function Navbar() {
                     </div>
                 </button>
             </div>
-
-            {/* Right: Download button */}
-            <motion.a
-                href="#"
-                className="h-12 sm:h-12 px-6 bg-white text-black rounded-full flex items-center gap-2 text-[14px] font-medium"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-            >
-                <i className="bi bi-apple" />
-                <ScrambleText text="Download" className="hidden sm:inline" />
-            </motion.a>
 
             {/* Mobile drawer */}
             <AnimatePresence>

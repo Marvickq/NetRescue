@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Anton+SC&display=swap');
-@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
 
 @tailwind base;
 @tailwind components;
@@ -33,6 +31,16 @@ html, body {
   font-family: "Space Mono", monospace;
 }
 
+/* Visible keyboard focus everywhere (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
 /* Smooth scrolling for sidebar nav */
 html {
   scroll-behavior: smooth;
@@ -41,5 +49,20 @@ html {
 /* Selection */
 ::selection {
   background: rgba(142, 127, 148, 0.3);
+  color: #fff;
+}
+
+/* Native select dropdowns.
+   The option list of a <select> is painted by the operating system, not by the
+   page, so on Windows it opens as a white list with a blue highlight over our
+   black panels. `color-scheme: dark` asks the platform for its dark popup; the
+   explicit option colours keep it black on white where that is ignored. */
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: #000;
   color: #fff;
 }

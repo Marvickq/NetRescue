@@ -1,3 +1,4 @@
+import { useConsent } from '../consent/ConsentContext';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -10,6 +11,34 @@ import type { FeatureSection } from '../data/features';
 import { ExperimentWorkflow, FeatureModePanel } from '../labs/ui';
 import { FEATURE_MODE, FEATURE_WORKFLOW } from '../labs/workflows';
 import NotFoundPage from './NotFoundPage';
+
+function YouTubeEmbed({ videoId, title }: { videoId: string; title: string }) {
+    const { consent, set } = useConsent();
+    return (
+        <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
+            {consent.youtube ? (
+                <iframe
+                    className="absolute inset-0 w-full h-full"
+                    src={`https://www.youtube-nocookie.com/embed/${videoId}`}
+                    title={title}
+                    allow="encrypted-media; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                />
+            ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 text-center">
+                    <p className="text-[13px] text-white/70 max-w-sm">
+                        This video is hosted by YouTube (Google). Loading it shares your IP address with Google.
+                    </p>
+                    <button onClick={() => set('youtube', true)}
+                        className="px-4 py-2 rounded-lg border border-white/40 text-[13px] hover:bg-white/10">
+                        Load video: {title}
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function FeatureDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -245,17 +274,7 @@ export default function FeatureDetailPage() {
                                     no tracking cookie is set. */}
                                 {s.videoId && (
                                     <figure className="mt-8">
-                                        <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
-                                            <iframe
-                                                className="absolute inset-0 w-full h-full"
-                                                src={`https://www.youtube-nocookie.com/embed/${s.videoId}`}
-                                                title={s.videoTitle ?? 'Embedded video'}
-                                                loading="lazy"
-                                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                referrerPolicy="strict-origin-when-cross-origin"
-                                                allowFullScreen
-                                            />
-                                        </div>
+                                        <YouTubeEmbed videoId={s.videoId} title={s.videoTitle ?? 'Embedded video'} />
                                         <figcaption className="mt-3 text-[13px] text-white/40 leading-relaxed">
                                             {s.videoTitle}
                                             {s.videoAuthor && <> &mdash; {s.videoAuthor}</>}

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { useConsent } from '../consent/ConsentContext';
 
 interface VideoBackgroundProps {
     src: string;
@@ -14,9 +15,13 @@ export default function VideoBackground({
     scrub = false,
 }: VideoBackgroundProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const { consent } = useConsent();
+    const reduceMotion = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // Nothing is requested from the video host until the visitor opts in.
+    const enabled = consent.backgroundVideo && !reduceMotion;
 
     useEffect(() => {
-        if (!scrub) return;
+        if (!scrub || !enabled) return;
         const video = videoRef.current;
         if (!video) return;
 
@@ -31,11 +36,11 @@ export default function VideoBackground({
 
         window.addEventListener('mousemove', handleMouse);
         return () => window.removeEventListener('mousemove', handleMouse);
-    }, [scrub]);
+    }, [scrub, enabled]);
 
     return (
         <div className={`absolute inset-0 overflow-hidden ${className}`}>
-            <video
+            {enabled && <video
                 ref={videoRef}
                 src={src}
                 className="w-full h-full object-cover"
@@ -45,7 +50,7 @@ export default function VideoBackground({
                 playsInline
                 preload="metadata"
                 aria-hidden="true"
-            />
+            />}
             <div className={`absolute inset-0 ${overlay}`} />
         </div>
     );

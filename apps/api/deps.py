@@ -9,11 +9,13 @@
 # result is a NameError at import time of the first router that uses
 # RequireOperator. Real annotation objects keep resolution local to this module.
 
+import hmac
 from typing import Annotated, Generator
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from netrescue.core.config import settings
 from netrescue.core.db import get_session
 from netrescue.security.audit import default_auditor
 from netrescue.security.authz import (
@@ -83,6 +85,12 @@ def resolve_principal(request: Request) -> Principal:
         role = Role(raw_role)
     except ValueError:
         role = Role.READONLY
+    # With a token configured, a claimed role is only honoured when the caller
+    # proves it; the headers alone are otherwise trivially forgeable.
+    if settings.api_auth_token and role is not Role.READONLY:
+        supplied = request.headers.get("X-NetRescue-Token", "")
+        if not hmac.compare_digest(supplied.encode(), settings.api_auth_token.encode()):
+            role = Role.READONLY
     return Principal(name=name, role=role)
 
 

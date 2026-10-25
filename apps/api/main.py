@@ -153,6 +153,23 @@ app.add_middleware(
 )
 log.info("CORS: %s", logger_note)
 
+if settings.api_bind_host not in ("127.0.0.1", "localhost", "::1") and not settings.api_auth_token:
+    log.warning(
+        "API_BIND_HOST=%s is not loopback and API_AUTH_TOKEN is empty: any client that "
+        "can reach this port can claim any role. Set API_AUTH_TOKEN and CORS_ORIGINS.",
+        settings.api_bind_host,
+    )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
+
 # Routers
 app.include_router(nodes.router)
 app.include_router(experiments.router)

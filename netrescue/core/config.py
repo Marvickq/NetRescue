@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     api_bind_port: int = Field(default=8000, description="Port for the FastAPI server")
     api_secret_key: str = Field(default="change-me", description="Secret key for session / token signing")
 
+    api_auth_token: str = Field(
+        default="",
+        description=(
+            "Shared secret. When set, a request may only claim a role above 'readonly' "
+            "by sending the same value in X-NetRescue-Token; otherwise it is treated as "
+            "readonly. Empty keeps the loopback-only trust model. Set this before "
+            "binding the API to any non-loopback address."
+        ),
+    )
+
     cors_origins: str = Field(
         default="",
         description=(
